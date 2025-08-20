@@ -1,0 +1,218 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// generator erd {
+//   provider = "prisma-erd-generator"
+//   output   = "C:/Users/karla/Desktop/erd.svg"
+// }
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               Int      @id @default(autoincrement())
+  email            String   @unique
+  phone            String
+  createdAt        DateTime @default(now())
+  countryCode      String
+  name             String?
+  state            String?
+  city             String[]
+  environment      String?
+  education1       String[]
+  education2       String[]
+  family           String[]
+  employment1      String[]
+  employment2      String[]
+  socialLife       String[]
+  hobbies          String[]
+  transportation   String[]
+  pets             String[]
+  greenSpace       String[]
+  shopping         String[]
+  restaurants      String[]
+  occupancy        String?
+  property         String?
+  timeframe        String?
+  priceRange       String?
+  downPayment      String?
+  employmentStatus String?
+  grossAnnual      Int?
+  credit           String?
+
+  otpCodes       OtpCode[]
+  Recommendation Recommendation[]
+}
+
+model OtpCode {
+  id          Int      @id @default(autoincrement())
+  code        String
+  phone       String
+  email       String
+  countryCode String
+  expiresAt   DateTime
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+  attempts    Int      @default(0)
+}
+
+model Recommendation {
+  id                 Int                 @id @default(autoincrement())
+  createdAt          DateTime            @default(now())
+  user               User                @relation(fields: [userId], references: [id])
+  userId             Int
+  propertySuggestion PropertySuggestion?
+
+  areas RecommendedArea[]
+}
+
+model RecommendedArea {
+  id              Int     @id @default(autoincrement())
+  name            String
+  state           String
+  reason          String
+  fullDescription String?
+
+  recommendation   Recommendation @relation(fields: [recommendationId], references: [id])
+  recommendationId Int
+
+  raceEthnicity RaceEthnicity?
+  incomeLevels  IncomeLevels?
+  crimeData     CrimeData?
+
+  schools School[]
+
+  socialLife  SocialLife[]
+  shopping    Shopping[]
+  greenSpaces GreenSpace[]
+  sports      Sport[]
+
+  placesOfInterest String[]
+  lifestyleTags    String[]
+  properties       Property[]
+}
+
+model RaceEthnicity {
+  id       Int             @id @default(autoincrement())
+  white    Float
+  hispanic Float
+  asian    Float
+  black    Float
+  other    Float
+  area     RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId   Int             @unique
+}
+
+model IncomeLevels {
+  id                    Int             @id @default(autoincrement())
+  perCapitaIncome       Float
+  medianHouseholdIncome Float
+  area                  RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId                Int             @unique
+}
+
+model CrimeData {
+  id             Int             @id @default(autoincrement())
+  violentCrimes  Int
+  propertyCrimes Int
+  totalCrimes    Int
+  violentRate    Float
+  propertyRate   Float
+  totalRate      Float
+  area           RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId         Int             @unique
+}
+
+model School {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String
+  fullDescription String?
+  imageUrl        String?
+  website         String
+  area            RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId          Int
+}
+
+model SocialLife {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String
+  fullDescription String?
+  imageUrl        String?
+  website         String
+  area            RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId          Int
+}
+
+model Shopping {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String
+  fullDescription String?
+  imageUrl        String?
+  website         String
+  area            RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId          Int
+}
+
+model GreenSpace {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String
+  fullDescription String?
+  imageUrl        String?
+  website         String
+  area            RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId          Int
+}
+
+model Sport {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String
+  fullDescription String?
+  imageUrl        String?
+  website         String
+  area            RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId          Int
+}
+
+model Property {
+  id              Int     @id @default(autoincrement())
+  address         String
+  price           String
+  description     String
+  fullDescription String?
+  imageUrl        String?
+  type            String
+  builtYear       Int
+  lotSizeSqFt     Int
+  parkingSpaces   Int
+  inUnitLaundry   Boolean
+  district        String
+
+  area   RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId Int
+}
+
+model PropertySuggestion {
+  id              Int     @id @default(autoincrement())
+  type            String
+  idealFor        String
+  priceRange      String
+  fullDescription String?
+
+  recommendation   Recommendation @relation(fields: [recommendationId], references: [id])
+  recommendationId Int            @unique
+}
