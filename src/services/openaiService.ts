@@ -1,14 +1,14 @@
-// services/openaiService.ts
 import dotenv from "dotenv";
 import OpenAI from "openai";
 import { z } from "zod";
 import { zodTextFormat } from "openai/helpers/zod";
+import { fetchVerifiedImage } from "./imageLookupService";
 
 dotenv.config();
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// ===================== Helpers de imágenes (los tuyos) =====================
+
 const PREFERRED_HOSTS = [
   "upload.wikimedia.org",
   "images.unsplash.com",
@@ -42,15 +42,36 @@ const ensurePreferred = (
   return FALLBACKS[type];
 };
 
-const sanitizeImages = (parsed: any) => {
-  parsed?.recommendedAreas?.forEach((area: any) => {
-    area?.schools?.forEach((s: any)      => { s.imageUrl = ensurePreferred(s.imageUrl, "school"); });
-    area?.socialLife?.forEach((s: any)   => { s.imageUrl = ensurePreferred(s.imageUrl, "social"); });
-    area?.shopping?.forEach((s: any)     => { s.imageUrl = ensurePreferred(s.imageUrl, "shopping"); });
-    area?.greenSpaces?.forEach((s: any)  => { s.imageUrl = ensurePreferred(s.imageUrl, "greens"); });
-    area?.sports?.forEach((s: any)       => { s.imageUrl = ensurePreferred(s.imageUrl, "sports"); });
-    area?.properties?.forEach((p: any)   => { p.imageUrl = ensurePreferred(p.imageUrl, "property"); });
-  });
+const sanitizeImages = async (parsed: any) => {
+  const handleList = async (
+    items: any[] | undefined,
+    type: keyof typeof FALLBACKS,
+    getName: (x: any) => string
+  ) => {
+    if (!items) return;
+    await Promise.all(
+      items.map(async (it) => {
+        const ensured = ensurePreferred(it.imageUrl, type);
+        if (ensured === FALLBACKS[type]) {
+          const looked = await fetchVerifiedImage(getName(it));
+          it.imageUrl = looked ?? ensured;
+        } else {
+          it.imageUrl = ensured;
+        }
+      })
+    );
+  };
+
+  await Promise.all(
+    parsed?.recommendedAreas?.map(async (area: any) => {
+      await handleList(area?.schools, "school", (s) => s.name);
+      await handleList(area?.socialLife, "social", (s) => s.name);
+      await handleList(area?.shopping, "shopping", (s) => s.name);
+      await handleList(area?.greenSpaces, "greens", (s) => s.name);
+      await handleList(area?.sports, "sports", (s) => s.name);
+      await handleList(area?.properties, "property", (p) => p.address);
+    }) ?? []
+  );
   return parsed;
 };
 
@@ -251,6 +272,6 @@ export const fetchRecommendationsFromOpenAI = async (userProfile: any) => {
   };
 
   console.log("🧼 [OpenAI] Sanitizando imágenes…");
-  return sanitizeImages(finalResult);
+  return await sanitizeImages(finalResult);
 };
 
