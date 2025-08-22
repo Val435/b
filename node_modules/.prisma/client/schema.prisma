@@ -81,6 +81,7 @@ model RecommendedArea {
   name            String
   state           String
   reason          String
+  imageUrl        String?
   fullDescription String?
 
   recommendation   Recommendation @relation(fields: [recommendationId], references: [id])

@@ -1,18 +1,15 @@
-// src/imageLookupService.ts
 import dotenv from "dotenv";
 dotenv.config();
 
-// ── CONFIG / API KEY ──────────────────────────────────────────────────────────
 const API_KEY =
   process.env.GOOGLE_MAPS_KEY ||
   process.env.GOOGLE_PLACES_API_KEY ||
   "";
 
 if (!API_KEY) {
-  console.warn("⚠️ Falta GOOGLE_MAPS_KEY / GOOGLE_PLACES_API_KEY en .env");
+  console.warn(" Missing GOOGLE_MAPS_KEY / GOOGLE_PLACES_API_KEY in .env");
 }
 
-// ── DEBUG helpers ─────────────────────────────────────────────────────────────
 const DEBUG = (process.env.PLACES_DEBUG || "").toLowerCase() === "true";
 
 function maskKey(k: string) {
@@ -49,27 +46,19 @@ function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-/**
- * Busca una foto real para un lugar usando Google Places (New v1):
- *  1) places:searchText  -> obtiene places[].photos[].name
- *  2) photos media JSON  -> obtiene { photoUri } directo (lh3.googleusercontent.com)
- *
- * Retorna null si no hay foto utilizable.
- */
+
 export async function fetchVerifiedImage(
   rawQuery: string,
   opts?: {
-    /** Contexto geográfico para desambiguar (ej. "Austin, TX"). */
     locationHint?: string;
-    /** Tipo único de lugar para sesgar la búsqueda (v1 "includedType"), p.ej. "school", "park", "shopping_mall", "stadium", "bar". */
     includedType?: string;
-    /** Tamaño deseado al pedir la imagen. */
+    
     maxWidthPx?: number;
     maxHeightPx?: number;
-    /** Opcional: idioma/región para desambiguar. */
-    languageCode?: string; // ej. "en"
-    regionCode?: string;   // ej. "US"
-    /** Opcional: sesgo por ubicación si ya tienes coordenadas. */
+   
+    languageCode?: string; 
+    regionCode?: string;   
+    
     lat?: number;
     lng?: number;
   }
@@ -82,7 +71,6 @@ export async function fetchVerifiedImage(
     const languageCode = opts?.languageCode ?? "en";
     const regionCode   = opts?.regionCode   ?? "US";
 
-    // Variantes de búsqueda (sube el hit-rate)
     const queries = [
       [rawQuery, opts?.includedType, opts?.locationHint].filter(Boolean).join(" ").trim(),
       [rawQuery, opts?.locationHint].filter(Boolean).join(" ").trim(),
@@ -90,11 +78,11 @@ export async function fetchVerifiedImage(
       [rawQuery, opts?.includedType || "place"].filter(Boolean).join(" ").trim(),
     ].filter(Boolean);
 
-    // Versión “laxa” del nombre (quita símbolos que a veces rompen el match)
     const cleanedRaw = rawQuery
       .replace(/[’'&]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
+   const normQuery = cleanedRaw.toLowerCase();
 
     if (cleanedRaw && cleanedRaw !== rawQuery) {
       queries.push(
@@ -102,11 +90,9 @@ export async function fetchVerifiedImage(
       );
     }
 
-    // (Opcional) variantes extra para direcciones puras
     queries.push(`${rawQuery} building`.trim());
     queries.push(`${rawQuery} business`.trim());
 
-    // Encabezados con FieldMask robusto (¡clave pedir photos.name!)
     const baseHeaders: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": API_KEY,
@@ -114,8 +100,8 @@ export async function fetchVerifiedImage(
         "places.id,places.displayName,places.photos,places.types,places.businessStatus,places.location,places.rating",
     };
 
-    log("🔧 PLACES_DEBUG=ON  key=", maskKey(API_KEY));
-    log("🔎 queries to try:", queries);
+    log(" PLACES_DEBUG=ON  key=", maskKey(API_KEY));
+    log(" queries to try:", queries);
 
     for (const textQuery of queries) {
       const body: any = {
@@ -125,7 +111,6 @@ export async function fetchVerifiedImage(
         regionCode,
       };
 
-      // Sesgar por ubicación si tenemos lat/lng
       if (typeof opts?.lat === "number" && typeof opts?.lng === "number") {
         body.locationBias = {
           rectangle: {
@@ -135,13 +120,11 @@ export async function fetchVerifiedImage(
         };
       }
 
-      // Si incluyes type y quieres sesgo fuerte por tipo:
       if (opts?.includedType) {
         body.includedType = opts.includedType;
       }
 
-      // 1) Text Search (New v1)
-      log("➡️  POST searchText payload:", JSON.stringify(body));
+      log("POST searchText payload:", JSON.stringify(body));
       const searchRes = await fetch("https://places.googleapis.com/v1/places:searchText", {
         method: "POST",
         headers: baseHeaders,
@@ -150,10 +133,10 @@ export async function fetchVerifiedImage(
 
       if (!searchRes.ok) {
         const err = await safeText(searchRes);
-        console.warn("🔎 Text Search error:", searchRes.status, err);
+        console.warn("Text Search error:", searchRes.status, err);
         continue;
       }
-      log("⬅️  searchText status:", searchRes.status);
+      log(" searchText status:", searchRes.status);
 
       const search = (await searchRes.json()) as {
         places?: Array<{
@@ -169,13 +152,16 @@ export async function fetchVerifiedImage(
       console.log(`[Places] query="${textQuery}" -> places: ${placesLen}`);
       if (!placesLen) continue;
 
-      // Detalle de candidatos (máx 5)
       search.places!.slice(0, 5).forEach((p, i) => dumpPlace(p, i));
       const withPhotos = search.places!.filter((p) => p.photos?.length);
       log(`    candidates with photos: ${withPhotos.length}`);
 
-      // Prioriza lugares operativos con fotos, o si no, cualquiera con fotos
       const place =
+        search.places?.find(
+          (p) =>
+            p.photos?.length &&
+            p.displayName?.text?.toLowerCase().includes(normQuery)
+        ) ||
         search.places?.find(
           (p) => p.businessStatus === "OPERATIONAL" && p.photos?.length
         ) ||
@@ -185,13 +171,13 @@ export async function fetchVerifiedImage(
         const top = search.places?.[0];
         const types = top?.types?.slice(0, 5).join(",") ?? "";
         console.log(
-          `📷 Lugares encontrados para "${textQuery}", pero sin fotos (ej. top types=[${types}] status=${top?.businessStatus})`
+          `Places found for "${textQuery}", but no photos (e.g. top types=[${types}] status=${top?.businessStatus})`
         );
         continue;
       }
 
       log(
-        "✔️  chosen place:",
+        "chosen place:",
         place.displayName?.text,
         "status=",
         place.businessStatus,
@@ -201,7 +187,7 @@ export async function fetchVerifiedImage(
         place.photos?.length
       );
 
-      const photoName = place.photos[0].name; // "places/.../photos/..."
+      const photoName = place.photos[0].name; 
       console.log(
         "[Places] photoName:",
         photoName,
@@ -209,23 +195,22 @@ export async function fetchVerifiedImage(
         place.displayName?.text
       );
 
-      // 2) Photos media (JSON) — skipHttpRedirect para obtener { photoUri } (lh3)
-      // ❗ NO uses encodeURIComponent(photoName) ni pases &key= en la URL
+      
       const mediaUrl =
         `https://places.googleapis.com/v1/${photoName}/media` +
         `?maxWidthPx=${maxWidthPx}&maxHeightPx=${maxHeightPx}&skipHttpRedirect=true`;
 
-      log("➡️  GET media:", mediaUrl);
+      log("GET media:", mediaUrl);
       const photoRes = await fetch(mediaUrl, {
         headers: { "X-Goog-Api-Key": API_KEY },
       });
 
       const contentType = photoRes.headers.get("content-type") || "";
-      log("⬅️  media status:", photoRes.status, "ct:", contentType);
+      log("media status:", photoRes.status, "ct:", contentType);
 
       if (!photoRes.ok) {
         const err = await safeText(photoRes);
-        console.warn("🖼️ Photos media error:", photoRes.status, err);
+        console.warn("Photos media error:", photoRes.status, err);
         continue;
       }
 
@@ -239,24 +224,23 @@ export async function fetchVerifiedImage(
           console.log("✅ Foto encontrada:", uri);
           return uri;
         } else {
-          log("⚠️ media JSON sin photoUri");
+          log("media JSON sin photoUri");
         }
       } else {
-        // Caso raro: si no respetara skipHttpRedirect, intentar header Location
         const loc = photoRes.headers.get("location");
         log("media redirect Location:", loc);
         if (loc) {
           const url = loc.startsWith("http") ? loc : `https:${loc}`;
-          console.log("✅ Foto (Location):", url);
+          console.log("Foto (Location):", url);
           return url;
         }
       }
 
-      // Si llegamos aquí, intenta con la siguiente variante de query
+     
       await delay(200);
     }
 
-    console.log("🧭 exhaust queries without usable photo for:", rawQuery);
+    console.log("exhaust queries without usable photo for:", rawQuery);
     return null;
   } catch (e) {
     console.error("fetchVerifiedImage() error:", e);

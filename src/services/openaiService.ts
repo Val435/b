@@ -24,6 +24,7 @@ const isPreferredHost = (u: string) => {
   }
 };
 
+
 const FALLBACKS = {
   school:   "https://cdn.pixabay.com/photo/2016/11/21/16/36/school-1844439_1280.jpg",
   social:   "https://cdn.pixabay.com/photo/2016/11/29/12/35/club-1867421_1280.jpg",
@@ -31,88 +32,106 @@ const FALLBACKS = {
   greens:   "https://cdn.pixabay.com/photo/2016/07/27/05/19/park-1544552_1280.jpg",
   sports:   "https://cdn.pixabay.com/photo/2016/11/29/09/08/sport-1867161_1280.jpg",
   property: "https://cdn.pixabay.com/photo/2016/08/26/15/06/house-1622401_1280.jpg",
+  area:     "https://cdn.pixabay.com/photo/2016/11/29/04/28/architecture-1868667_1280.jpg", // 👈 nuevo
 };
 
-const ensurePreferred = (
-  url: string | undefined,
-  type: keyof typeof FALLBACKS
-): string => {
-  if (!url) return FALLBACKS[type];
+type ImageKind = keyof typeof FALLBACKS;
 
+
+const ensurePreferred = (url: string | undefined, type: ImageKind): string => {
+  if (!url) return FALLBACKS[type];
   const u = url.trim();
   const isDirectFile   = /^https:\/\/\S+\.(jpg|jpeg|png|webp)(\?.*)?$/i.test(u);
   const isUnsplashRaw  = /^https:\/\/images\.unsplash\.com\/.*[?&]fm=(jpg|jpeg|png|webp)\b/i.test(u);
   const isGooglePhotos = /^https:\/\/lh3\.googleusercontent\.com\/.+/i.test(u);
-
-  
-  if (isDirectFile || isUnsplashRaw || isGooglePhotos) {
-    return u;
-  }
-
+  if (isDirectFile || isUnsplashRaw || isGooglePhotos) return u;
   return FALLBACKS[type];
 };
 
-
-
 const sanitizeImages = async (parsed: any) => {
-
-  const TYPE_HINTS: Record<keyof typeof FALLBACKS, string | undefined> = {
+  const TYPE_HINTS: Record<ImageKind, string | undefined> = {
     school: "school",
-    social: "bar",            
+    social: "bar",
     shopping: "shopping_mall",
     greens: "park",
-    sports: "stadium",        
-    property: undefined,     
+    sports: "stadium",
+    property: undefined,
+    area: undefined, 
   };
 
+ 
+  const ensureAreaImage = async (area: any) => {
+    const ensured = ensurePreferred(area.imageUrl, "area");
+    let looked: string | null = null;
+    try {
+  
+      looked = await fetchVerifiedImage(`${area.name} ${area.state}`, {
+        locationHint: [area.name, area.state].filter(Boolean).join(", "),
+      });
+     
+      if (!looked) {
+        looked = await fetchVerifiedImage(area.name, {
+          locationHint: area.state,
+        });
+      }
+    } catch {
+      looked = null;
+    }
+    area.imageUrl = looked || ensured;
+    console.log("🖼 area ·", area.name, "->", looked ? "GOOGLE OK" : "FALLBACK", area.imageUrl);
+  };
+
+  
+  const usedAreaImages = new Set<string>();
+
   const handleList = async (
-  items: any[] | undefined,
-  type: keyof typeof FALLBACKS,
-  getName: (x: any) => string,
-  areaName: string,
-  areaState: string
-) => {
-  if (!items) return;
-  const locationHint = [areaName, areaState].filter(Boolean).join(", ");
-  const includedType = TYPE_HINTS[type];
-
-  await Promise.all(
-    items.map(async (it) => {
-      const ensured = ensurePreferred(it.imageUrl, type);
-
-      if (ensured === FALLBACKS[type]) {
+    items: any[] | undefined,
+    type: ImageKind,
+    getName: (x: any) => string,
+    areaName: string,
+    areaState: string
+  ) => {
+    if (!items) return;
+    const locationHint = [areaName, areaState].filter(Boolean).join(", ");
+    const includedType = TYPE_HINTS[type];
+    const used = new Set<string>();
+    await Promise.all(
+      items.map(async (it) => {
+        const ensured = ensurePreferred(it.imageUrl, type);
         let looked: string | null = null;
         try {
-          
           looked = await fetchVerifiedImage(getName(it), { locationHint, includedType });
-         
-          if (!looked) {
-            looked = await fetchVerifiedImage(getName(it), { locationHint });
-          }
+          if (!looked) looked = await fetchVerifiedImage(getName(it), { locationHint });
         } catch {
           looked = null;
         }
-
-     
-        it.imageUrl = looked ?? ensured;
-
-      
-        console.log("🖼", type, "·", getName(it), "->",
-          looked ? "GOOGLE OK" : "FALLBACK",
-          looked || ensured
-        );
-      } else {
-       
-        it.imageUrl = ensured;
-      }
-    })
-  );
-};
+        let finalUrl = looked || ensured;
+        if (used.has(finalUrl)) {
+          const alt = ensured !== finalUrl ? ensured : FALLBACKS[type];
+          finalUrl = used.has(alt) ? FALLBACKS[type] : alt;
+        }
+        used.add(finalUrl);
+        it.imageUrl = finalUrl;
+        console.log("🖼", type, "·", getName(it), "->", looked ? "GOOGLE OK" : "FALLBACK", finalUrl);
+      })
+    );
+  };
 
   await Promise.all(
-    parsed?.recommendedAreas?.map(async (area: any) => {
+    (parsed?.recommendedAreas ?? []).map(async (area: any) => {
       const aName = area?.name ?? "";
       const aState = area?.state ?? "";
+
+   
+      await ensureAreaImage(area);
+
+   
+      if (usedAreaImages.has(area.imageUrl)) {
+       
+        const alt = FALLBACKS.area;
+        area.imageUrl = usedAreaImages.has(alt) ? ensurePreferred(area.imageUrl, "area") : alt;
+      }
+      usedAreaImages.add(area.imageUrl);
 
       await handleList(area?.schools,     "school",   (s) => s.name,    aName, aState);
       await handleList(area?.socialLife,  "social",   (s) => s.name,    aName, aState);
@@ -120,7 +139,7 @@ const sanitizeImages = async (parsed: any) => {
       await handleList(area?.greenSpaces, "greens",   (s) => s.name,    aName, aState);
       await handleList(area?.sports,      "sports",   (s) => s.name,    aName, aState);
       await handleList(area?.properties,  "property", (p) => p.address, aName, aState);
-    }) ?? []
+    })
   );
 
   return parsed;
@@ -136,7 +155,7 @@ export const imageUrlString = z
   .string()
   .regex(
     /^https:\/\/\S+\.(jpg|jpeg|png|webp)(\?.*)?$|^https:\/\/images\.unsplash\.com\/.*[?&]fm=(jpg|jpeg|png|webp)\b|^https:\/\/lh3\.googleusercontent\.com\/.+/i,
-    "imageUrl debe ser una URL https válida (jpg/png/webp, Unsplash raw ?fm= o Google Photos)"
+    "imageUrl must be a valid https URL (jpg/png/webp, Unsplash raw ?fm= or Google Photos)"
   );
 
 
@@ -171,6 +190,7 @@ const coreSchema = z.object({
     state: z.string(),
     reason: z.string(),
     fullDescription: nonEmptyText,
+    imageUrl: imageUrlString.optional(),
     demographics: z.object({
       raceEthnicity: z.object({
         white: z.number().int(),
@@ -264,8 +284,8 @@ OUTPUT RULES
 `.trim();
 
 export const fetchRecommendationsFromOpenAI = async (userProfile: any) => {
-  console.log("🤖 [OpenAI] Inicio (2 fases con web_search_preview)…");
-  console.log("📤 Perfil:", JSON.stringify(userProfile, null, 2));
+  console.log("🤖 [OpenAI] Starting (2 phases with web_search_preview)…");
+  console.log("📤 Profile:", JSON.stringify(userProfile, null, 2));
 
   
   const coreResp = await openai.responses.parse({
@@ -319,7 +339,7 @@ export const fetchRecommendationsFromOpenAI = async (userProfile: any) => {
     propertySuggestion: core.propertySuggestion,
   };
 
-  console.log("[OpenAI] Sanitizando imágenes…");
+  console.log("[OpenAI] Sanitizing images…");
   return await sanitizeImages(finalResult);
 };
 

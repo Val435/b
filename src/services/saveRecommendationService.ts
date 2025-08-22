@@ -47,6 +47,7 @@ export async function saveRecommendation(outputParsed: any, userId: number) {
           state,
           reason,
           fullDescription: fullDescription ?? null,
+          imageUrl: area.imageUrl ?? "",
           recommendationId: recommendation.id,
           placesOfInterest,
           lifestyleTags,

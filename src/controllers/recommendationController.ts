@@ -131,7 +131,8 @@ export const fetchFullRecommendation = async (
     name: area.name,
     state: area.state,
     reason: area.reason,
-    fullDescription: area.fullDescription ?? "",        
+    fullDescription: area.fullDescription ?? "",
+    imageUrl: safeUrl(area.imageUrl),
 
     demographics: {
       raceEthnicity: {
