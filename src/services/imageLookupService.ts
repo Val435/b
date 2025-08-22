@@ -2,6 +2,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+// ── CONFIG / API KEY ──────────────────────────────────────────────────────────
 const API_KEY =
   process.env.GOOGLE_MAPS_KEY ||
   process.env.GOOGLE_PLACES_API_KEY ||
@@ -9,6 +10,43 @@ const API_KEY =
 
 if (!API_KEY) {
   console.warn("⚠️ Falta GOOGLE_MAPS_KEY / GOOGLE_PLACES_API_KEY en .env");
+}
+
+// ── DEBUG helpers ─────────────────────────────────────────────────────────────
+const DEBUG = (process.env.PLACES_DEBUG || "").toLowerCase() === "true";
+
+function maskKey(k: string) {
+  if (!k) return "<empty>";
+  return k.length <= 8 ? "<short>" : k.slice(0, 4) + "…" + k.slice(-4);
+}
+
+function log(...args: any[]) {
+  if (DEBUG) console.log(...args);
+}
+
+async function safeText(res: Response) {
+  try {
+    return await res.text();
+  } catch {
+    return "<no-body>";
+  }
+}
+
+function dumpPlace(p: any, i: number) {
+  const types = Array.isArray(p.types) ? p.types.slice(0, 5).join(",") : "";
+  const photosLen = Array.isArray(p.photos) ? p.photos.length : 0;
+  const name = p.displayName?.text ?? p.id ?? "<no-name>";
+  const status = p.businessStatus ?? "<no-status>";
+  log(
+    `    #${i + 1} ${name}\n` +
+      `       id=${p.id}\n` +
+      `       status=${status} types=[${types}]\n` +
+      `       photos=${photosLen}`
+  );
+}
+
+function delay(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 /**
@@ -64,12 +102,20 @@ export async function fetchVerifiedImage(
       );
     }
 
+    // (Opcional) variantes extra para direcciones puras
+    queries.push(`${rawQuery} building`.trim());
+    queries.push(`${rawQuery} business`.trim());
+
     // Encabezados con FieldMask robusto (¡clave pedir photos.name!)
     const baseHeaders: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": API_KEY,
-      "X-Goog-FieldMask": "places.id,places.displayName,places.photos,places.types,places.businessStatus,places.location,places.rating"
+      "X-Goog-FieldMask":
+        "places.id,places.displayName,places.photos,places.types,places.businessStatus,places.location,places.rating",
     };
+
+    log("🔧 PLACES_DEBUG=ON  key=", maskKey(API_KEY));
+    log("🔎 queries to try:", queries);
 
     for (const textQuery of queries) {
       const body: any = {
@@ -87,8 +133,6 @@ export async function fetchVerifiedImage(
             high: { latitude: opts.lat + 0.1, longitude: opts.lng + 0.1 },
           },
         };
-      } else {
-        // sin coords, ya incluimos locationHint dentro de textQuery
       }
 
       // Si incluyes type y quieres sesgo fuerte por tipo:
@@ -97,6 +141,7 @@ export async function fetchVerifiedImage(
       }
 
       // 1) Text Search (New v1)
+      log("➡️  POST searchText payload:", JSON.stringify(body));
       const searchRes = await fetch("https://places.googleapis.com/v1/places:searchText", {
         method: "POST",
         headers: baseHeaders,
@@ -108,6 +153,7 @@ export async function fetchVerifiedImage(
         console.warn("🔎 Text Search error:", searchRes.status, err);
         continue;
       }
+      log("⬅️  searchText status:", searchRes.status);
 
       const search = (await searchRes.json()) as {
         places?: Array<{
@@ -121,28 +167,61 @@ export async function fetchVerifiedImage(
 
       const placesLen = search.places?.length || 0;
       console.log(`[Places] query="${textQuery}" -> places: ${placesLen}`);
-
       if (!placesLen) continue;
+
+      // Detalle de candidatos (máx 5)
+      search.places!.slice(0, 5).forEach((p, i) => dumpPlace(p, i));
+      const withPhotos = search.places!.filter((p) => p.photos?.length);
+      log(`    candidates with photos: ${withPhotos.length}`);
 
       // Prioriza lugares operativos con fotos, o si no, cualquiera con fotos
       const place =
-        search.places?.find(p => p.businessStatus === "OPERATIONAL" && p.photos?.length) ||
-        search.places?.find(p => p.photos?.length);
+        search.places?.find(
+          (p) => p.businessStatus === "OPERATIONAL" && p.photos?.length
+        ) ||
+        search.places?.find((p) => p.photos?.length);
 
       if (!place?.photos?.length) {
-        console.log(`📷 Lugares encontrados para "${textQuery}", pero sin fotos`);
+        const top = search.places?.[0];
+        const types = top?.types?.slice(0, 5).join(",") ?? "";
+        console.log(
+          `📷 Lugares encontrados para "${textQuery}", pero sin fotos (ej. top types=[${types}] status=${top?.businessStatus})`
+        );
         continue;
       }
 
+      log(
+        "✔️  chosen place:",
+        place.displayName?.text,
+        "status=",
+        place.businessStatus,
+        "types=",
+        place.types?.slice(0, 5),
+        "photos=",
+        place.photos?.length
+      );
+
       const photoName = place.photos[0].name; // "places/.../photos/..."
-      console.log("[Places] photoName:", photoName, "for", place.displayName?.text);
+      console.log(
+        "[Places] photoName:",
+        photoName,
+        "for",
+        place.displayName?.text
+      );
 
       // 2) Photos media (JSON) — skipHttpRedirect para obtener { photoUri } (lh3)
-      const photoRes = await fetch(
-        `https://places.googleapis.com/v1/${encodeURIComponent(
-          photoName
-        )}/media?maxWidthPx=${maxWidthPx}&maxHeightPx=${maxHeightPx}&skipHttpRedirect=true&key=${API_KEY}`
-      );
+      // ❗ NO uses encodeURIComponent(photoName) ni pases &key= en la URL
+      const mediaUrl =
+        `https://places.googleapis.com/v1/${photoName}/media` +
+        `?maxWidthPx=${maxWidthPx}&maxHeightPx=${maxHeightPx}&skipHttpRedirect=true`;
+
+      log("➡️  GET media:", mediaUrl);
+      const photoRes = await fetch(mediaUrl, {
+        headers: { "X-Goog-Api-Key": API_KEY },
+      });
+
+      const contentType = photoRes.headers.get("content-type") || "";
+      log("⬅️  media status:", photoRes.status, "ct:", contentType);
 
       if (!photoRes.ok) {
         const err = await safeText(photoRes);
@@ -150,44 +229,37 @@ export async function fetchVerifiedImage(
         continue;
       }
 
-      const contentType = photoRes.headers.get("content-type") || "";
-      console.log("[Places] media status:", photoRes.status, "ct:", contentType);
-
       if (contentType.includes("application/json")) {
         const j = (await photoRes.json()) as { photoUri?: string };
+        log("media JSON:", j);
         if (j.photoUri) {
-          const uri = j.photoUri.startsWith("http") ? j.photoUri : `https:${j.photoUri}`;
+          const uri = j.photoUri.startsWith("http")
+            ? j.photoUri
+            : `https:${j.photoUri}`;
           console.log("✅ Foto encontrada:", uri);
           return uri;
+        } else {
+          log("⚠️ media JSON sin photoUri");
         }
       } else {
         // Caso raro: si no respetara skipHttpRedirect, intentar header Location
         const loc = photoRes.headers.get("location");
+        log("media redirect Location:", loc);
         if (loc) {
           const url = loc.startsWith("http") ? loc : `https:${loc}`;
           console.log("✅ Foto (Location):", url);
           return url;
         }
       }
+
       // Si llegamos aquí, intenta con la siguiente variante de query
       await delay(200);
     }
 
+    console.log("🧭 exhaust queries without usable photo for:", rawQuery);
     return null;
   } catch (e) {
     console.error("fetchVerifiedImage() error:", e);
     return null;
   }
-}
-
-async function safeText(res: Response) {
-  try {
-    return await res.text();
-  } catch {
-    return "<no-body>";
-  }
-}
-
-function delay(ms: number) {
-  return new Promise((r) => setTimeout(r, ms));
 }
