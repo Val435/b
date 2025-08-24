@@ -156,7 +156,7 @@ export async function saveRecommendation(outputParsed: any, userId: number) {
             price: p.price,
             description: p.description,
             fullDescription: p.fullDescription ?? null,
-            imageUrl: p.imageUrl ?? "",
+           imageUrls: p.imageUrls ?? [],
             type: p.details.type,
             builtYear: p.details.builtYear,
             lotSizeSqFt: p.details.lotSizeSqFt,
