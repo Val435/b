@@ -97,27 +97,46 @@ const sanitizeImages = async (parsed: any) => {
     const used = new Set<string>();
     await Promise.all(
       items.map(async (it) => {
-        const original = Array.isArray(it.imageUrls) ? it.imageUrls[0] : it.imageUrl;
-        const ensured = ensurePreferred(original, type);
-        let looked: string | null = null;
-        try {
-          looked = await fetchVerifiedImage(getName(it), { locationHint, includedType });
-          if (!looked) looked = await fetchVerifiedImage(getName(it), { locationHint });
-        } catch {
-          looked = null;
-        }
-        let finalUrl = looked || ensured;
-        if (used.has(finalUrl)) {
-          const alt = ensured !== finalUrl ? ensured : FALLBACKS[type];
-          finalUrl = used.has(alt) ? FALLBACKS[type] : alt;
-        }
-        used.add(finalUrl);
-         if (Array.isArray(it.imageUrls)) {
-          it.imageUrls = [finalUrl];
+          const processUrl = async (orig?: string) => {
+          const ensured = ensurePreferred(orig, type);
+          let looked: string | null = null;
+          try {
+            looked = await fetchVerifiedImage(getName(it), { locationHint, includedType });
+            if (!looked) looked = await fetchVerifiedImage(getName(it), { locationHint });
+          } catch {
+            looked = null;
+          }
+          let finalUrl = looked || ensured;
+          if (used.has(finalUrl)) {
+            const alt = ensured !== finalUrl ? ensured : FALLBACKS[type];
+            finalUrl = used.has(alt) ? FALLBACKS[type] : alt;
+          }
+          used.add(finalUrl);
+          return { finalUrl, lookedOk: !!looked };
+        };
+
+        if (Array.isArray(it.imageUrls)) {
+          const targetLen = Math.min(Math.max(it.imageUrls.length, 3), 5);
+          const originals = it.imageUrls.slice(0, targetLen);
+          const sanitized: string[] = [];
+          for (let i = 0; i < originals.length; i++) {
+            const { finalUrl, lookedOk } = await processUrl(originals[i]);
+            sanitized.push(finalUrl);
+            console.log("🖼", type, `[${i}] ·`, getName(it), "->", lookedOk ? "GOOGLE OK" : "FALLBACK", finalUrl);
+          }
+          while (sanitized.length < targetLen) {
+            const { finalUrl, lookedOk } = await processUrl(undefined);
+            sanitized.push(finalUrl);
+            const idx = sanitized.length - 1;
+            console.log("🖼", type, `[${idx}] ·`, getName(it), "->", lookedOk ? "GOOGLE OK" : "FALLBACK", finalUrl);
+          }
+          it.imageUrls = sanitized;
         } else {
+          const { finalUrl, lookedOk } = await processUrl(it.imageUrl);
           it.imageUrl = finalUrl;
+          console.log("🖼", type, "·", getName(it), "->", lookedOk ? "GOOGLE OK" : "FALLBACK", finalUrl);
         }
-        console.log("🖼", type, "·", getName(it), "->", looked ? "GOOGLE OK" : "FALLBACK", finalUrl);
+        
       })
     );
   };
@@ -177,7 +196,7 @@ const propertySchema = z.object({
   price: z.string(),
   description: z.string(),
   fullDescription: nonEmptyText,
-    imageUrls: z.array(imageUrlString),
+    imageUrls: z.array(imageUrlString).min(3).max(5),
   details: z.object({
     type: z.string(),
     builtYear: z.number().int(),

@@ -206,7 +206,7 @@ export const fetchFullRecommendation = async (
       price: property.price,
       description: property.description,
       fullDescription: property.fullDescription ?? "",
-      imageUrls: (property.imageUrls ?? []).map((url) => safeUrl(url)),
+      imageUrls: (property.imageUrls ?? []).slice(0, 5).map((url) => safeUrl(url)),
       details: {
         type: property.type,
         builtYear: property.builtYear,
