@@ -97,12 +97,14 @@ const sanitizeImages = async (parsed: any) => {
     const used = new Set<string>();
     await Promise.all(
       items.map(async (it) => {
-          const processUrl = async (orig?: string) => {
+           const processUrl = async (orig?: string, photoIndex = 0) => {
           const ensured = ensurePreferred(orig, type);
           let looked: string | null = null;
           try {
-            looked = await fetchVerifiedImage(getName(it), { locationHint, includedType });
-            if (!looked) looked = await fetchVerifiedImage(getName(it), { locationHint });
+             looked = await fetchVerifiedImage(getName(it), { locationHint, includedType, photoIndex });
+            if (!looked) {
+              looked = await fetchVerifiedImage(getName(it), { locationHint, photoIndex });
+            }
           } catch {
             looked = null;
           }
@@ -120,15 +122,31 @@ const sanitizeImages = async (parsed: any) => {
           const originals = it.imageUrls.slice(0, targetLen);
           const sanitized: string[] = [];
           for (let i = 0; i < originals.length; i++) {
-            const { finalUrl, lookedOk } = await processUrl(originals[i]);
+            const { finalUrl, lookedOk } = await processUrl(originals[i], i);
             sanitized.push(finalUrl);
-            console.log("🖼", type, `[${i}] ·`, getName(it), "->", lookedOk ? "GOOGLE OK" : "FALLBACK", finalUrl);
+             console.log(
+              "🖼",
+              type,
+              `[${i}] ·`,
+              getName(it),
+              "->",
+              lookedOk ? "GOOGLE OK" : "FALLBACK",
+              finalUrl
+            );
           }
           while (sanitized.length < targetLen) {
-            const { finalUrl, lookedOk } = await processUrl(undefined);
+            const idx = sanitized.length;
+            const { finalUrl, lookedOk } = await processUrl(undefined, idx);
             sanitized.push(finalUrl);
-            const idx = sanitized.length - 1;
-            console.log("🖼", type, `[${idx}] ·`, getName(it), "->", lookedOk ? "GOOGLE OK" : "FALLBACK", finalUrl);
+            console.log(
+              "🖼",
+              type,
+              `[${idx}] ·`,
+              getName(it),
+              "->",
+              lookedOk ? "GOOGLE OK" : "FALLBACK",
+              finalUrl
+            );
           }
           it.imageUrls = sanitized;
         } else {
@@ -289,8 +307,9 @@ TASK
 - Each list must have EXACTLY 3 items.
 
 IMAGE RULES
-- Every item that requires imageUrl must be an https direct file ending with .jpg/.jpeg/.png/.webp.
-- If unsure, use these exact defaults:
+- Every item that requires an image must be an https direct file ending with .jpg/.jpeg/.png/.webp.
+- Each property must include "imageUrls": an array of 3–5 such https links; if fewer than 3 valid links, repeat the default property URL to fill the array.
+- If any image is missing or invalid, use these exact defaults (repeating for each empty slot):
   school:   ${FALLBACKS.school}
   social:   ${FALLBACKS.social}
   shopping: ${FALLBACKS.shopping}

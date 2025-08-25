@@ -52,15 +52,14 @@ export async function fetchVerifiedImage(
   opts?: {
     locationHint?: string;
     includedType?: string;
-    
     maxWidthPx?: number;
     maxHeightPx?: number;
-   
     languageCode?: string; 
     regionCode?: string;   
     
     lat?: number;
     lng?: number;
+     photoIndex?: number;
   }
 ): Promise<string | null> {
   try {
@@ -70,6 +69,7 @@ export async function fetchVerifiedImage(
     const maxHeightPx = opts?.maxHeightPx ?? 800;
     const languageCode = opts?.languageCode ?? "en";
     const regionCode   = opts?.regionCode   ?? "US";
+     const photoIndex   = opts?.photoIndex ?? 0;
 
     const queries = [
       [rawQuery, opts?.includedType, opts?.locationHint].filter(Boolean).join(" ").trim(),
@@ -187,12 +187,20 @@ export async function fetchVerifiedImage(
         place.photos?.length
       );
 
-      const photoName = place.photos[0].name; 
+       const photo = place.photos[photoIndex];
+      if (!photo) {
+        console.log(
+          `[Places] place has only ${place.photos.length} photos, missing index ${photoIndex}`
+        );
+        continue;
+      }
+      const photoName = photo.name;
       console.log(
         "[Places] photoName:",
         photoName,
         "for",
-        place.displayName?.text
+        place.displayName?.text,
+        `[#${photoIndex}]`
       );
 
       
