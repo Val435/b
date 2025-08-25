@@ -13,6 +13,7 @@ import {
 import prisma from "../config/prisma";
 import { safeUrl } from "../utils/url";
 
+
 export const fetchRecommendedAreas = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = Number(req.params.userId);
@@ -205,7 +206,7 @@ export const fetchFullRecommendation = async (
       price: property.price,
       description: property.description,
       fullDescription: property.fullDescription ?? "",
-      imageUrl: safeUrl(property.imageUrl),
+      imageUrls: (property.imageUrls ?? []).map((url) => safeUrl(url)),
       details: {
         type: property.type,
         builtYear: property.builtYear,

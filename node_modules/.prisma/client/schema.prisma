@@ -190,12 +190,12 @@ model Sport {
 }
 
 model Property {
-  id              Int     @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   address         String
   price           String
   description     String
   fullDescription String?
-  imageUrl        String?
+  imageUrls       String[]
   type            String
   builtYear       Int
   lotSizeSqFt     Int

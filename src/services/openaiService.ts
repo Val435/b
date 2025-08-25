@@ -97,7 +97,8 @@ const sanitizeImages = async (parsed: any) => {
     const used = new Set<string>();
     await Promise.all(
       items.map(async (it) => {
-        const ensured = ensurePreferred(it.imageUrl, type);
+        const original = Array.isArray(it.imageUrls) ? it.imageUrls[0] : it.imageUrl;
+        const ensured = ensurePreferred(original, type);
         let looked: string | null = null;
         try {
           looked = await fetchVerifiedImage(getName(it), { locationHint, includedType });
@@ -111,7 +112,11 @@ const sanitizeImages = async (parsed: any) => {
           finalUrl = used.has(alt) ? FALLBACKS[type] : alt;
         }
         used.add(finalUrl);
-        it.imageUrl = finalUrl;
+         if (Array.isArray(it.imageUrls)) {
+          it.imageUrls = [finalUrl];
+        } else {
+          it.imageUrl = finalUrl;
+        }
         console.log("🖼", type, "·", getName(it), "->", looked ? "GOOGLE OK" : "FALLBACK", finalUrl);
       })
     );
@@ -172,7 +177,7 @@ const propertySchema = z.object({
   price: z.string(),
   description: z.string(),
   fullDescription: nonEmptyText,
-  imageUrl: imageUrlString,
+    imageUrls: z.array(imageUrlString),
   details: z.object({
     type: z.string(),
     builtYear: z.number().int(),
