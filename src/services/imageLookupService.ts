@@ -46,6 +46,25 @@ function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// --- Filtros anti-comercial y preferencia residencial ---
+const BAD_TYPES = new Set([
+  "accounting","bank","insurance_agency","lawyer","real_estate_agency",
+  "post_office","car_dealer","car_rental","car_repair","car_wash","gas_station",
+  "restaurant","cafe","bar","night_club","shopping_mall","store","gym",
+  "church","mosque","synagogue","school","university"
+]);
+
+const COMMERCIAL_HINTS =
+  /(commercial|retail|office|warehouse|industrial|chamber of commerce|bookkeeping|business|mall|plaza|center|company|inc\b|llc\b|suite\s*#?\d+|unit\s*\d+)/i;
+
+const looksCommercial = (p: any) =>
+  COMMERCIAL_HINTS.test(p.displayName?.text || "") ||
+  (Array.isArray(p.types) && p.types.some((t: string) => BAD_TYPES.has(t)));
+
+const residentialish = (p: any) =>
+  Array.isArray(p.types) && p.types.some((t: string) =>
+    ["premise","street_address","route","locality","sublocality","neighborhood","plus_code"].includes(t)
+  );
 
 export async function fetchVerifiedImage(
   rawQuery: string,
@@ -54,12 +73,12 @@ export async function fetchVerifiedImage(
     includedType?: string;
     maxWidthPx?: number;
     maxHeightPx?: number;
-    languageCode?: string; 
-    regionCode?: string;   
-    
+    languageCode?: string;
+    regionCode?: string;
+
     lat?: number;
     lng?: number;
-     photoIndex?: number;
+    photoIndex?: number;
   }
 ): Promise<string | null> {
   try {
@@ -69,7 +88,7 @@ export async function fetchVerifiedImage(
     const maxHeightPx = opts?.maxHeightPx ?? 800;
     const languageCode = opts?.languageCode ?? "en";
     const regionCode   = opts?.regionCode   ?? "US";
-     const photoIndex   = opts?.photoIndex ?? 0;
+    const photoIndex   = opts?.photoIndex ?? 0;
 
     const queries = [
       [rawQuery, opts?.includedType, opts?.locationHint].filter(Boolean).join(" ").trim(),
@@ -82,7 +101,7 @@ export async function fetchVerifiedImage(
       .replace(/[’'&]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-   const normQuery = cleanedRaw.toLowerCase();
+    const normQuery = cleanedRaw.toLowerCase();
 
     if (cleanedRaw && cleanedRaw !== rawQuery) {
       queries.push(
@@ -90,8 +109,10 @@ export async function fetchVerifiedImage(
       );
     }
 
-    queries.push(`${rawQuery} building`.trim());
-    queries.push(`${rawQuery} business`.trim());
+    // 👇 sesgo a residencial (quitamos “business/building”)
+    queries.push(`${rawQuery} house`.trim());
+    queries.push(`${rawQuery} home`.trim());
+    queries.push(`${rawQuery} residential`.trim());
 
     const baseHeaders: Record<string, string> = {
       "Content-Type": "application/json",
@@ -156,22 +177,27 @@ export async function fetchVerifiedImage(
       const withPhotos = search.places!.filter((p) => p.photos?.length);
       log(`    candidates with photos: ${withPhotos.length}`);
 
+      // --- filtro y ranking residencial ---
+      const ranked = (search.places || [])
+        .filter((p) => p.photos?.length)
+        .filter((p) => !looksCommercial(p))
+        .sort((a, b) => Number(residentialish(b)) - Number(residentialish(a)));
+
+      if (!ranked.length) {
+        console.log(`All candidates looked commercial for "${textQuery}"`);
+        continue;
+      }
+
       const place =
-        search.places?.find(
-          (p) =>
-            p.photos?.length &&
-            p.displayName?.text?.toLowerCase().includes(normQuery)
-        ) ||
-        search.places?.find(
-          (p) => p.businessStatus === "OPERATIONAL" && p.photos?.length
-        ) ||
-        search.places?.find((p) => p.photos?.length);
+        ranked.find((p) => p.displayName?.text?.toLowerCase().includes(normQuery)) ||
+        ranked.find((p) => p.businessStatus === "OPERATIONAL") ||
+        ranked[0];
 
       if (!place?.photos?.length) {
-        const top = search.places?.[0];
+        const top = ranked?.[0];
         const types = top?.types?.slice(0, 5).join(",") ?? "";
         console.log(
-          `Places found for "${textQuery}", but no photos (e.g. top types=[${types}] status=${top?.businessStatus})`
+          `Ranked places but no photos (types=[${types}] status=${top?.businessStatus})`
         );
         continue;
       }
@@ -187,7 +213,7 @@ export async function fetchVerifiedImage(
         place.photos?.length
       );
 
-       const photo = place.photos[photoIndex];
+      const photo = place.photos[photoIndex];
       if (!photo) {
         console.log(
           `[Places] place has only ${place.photos.length} photos, missing index ${photoIndex}`
@@ -203,7 +229,6 @@ export async function fetchVerifiedImage(
         `[#${photoIndex}]`
       );
 
-      
       const mediaUrl =
         `https://places.googleapis.com/v1/${photoName}/media` +
         `?maxWidthPx=${maxWidthPx}&maxHeightPx=${maxHeightPx}&skipHttpRedirect=true`;
@@ -229,7 +254,7 @@ export async function fetchVerifiedImage(
           const uri = j.photoUri.startsWith("http")
             ? j.photoUri
             : `https:${j.photoUri}`;
-          console.log("✅ Foto encontrada:", uri);
+          console.log("Foto encontrada:", uri);
           return uri;
         } else {
           log("media JSON sin photoUri");
@@ -244,7 +269,6 @@ export async function fetchVerifiedImage(
         }
       }
 
-     
       await delay(200);
     }
 
