@@ -1,11 +1,15 @@
 // services/saveRecommendationService.ts
-import prisma from "../config/prisma"; 
+import prisma from "../config/prisma";
 
-export async function saveRecommendation(outputParsed: any, userId: number) {
+export async function saveRecommendation(
+  outputParsed: any,
+  userId: number,
+  journeyId: number
+) {
   const { recommendedAreas, propertySuggestion } = outputParsed;
 
   const recommendation = await prisma.recommendation.create({
-    data: { userId },
+    data: { userId, journeyId },
   });
 
   if (propertySuggestion) {

@@ -83,8 +83,6 @@ model Journey {
   completedAt DateTime?
   status      JourneyStatus @default(DRAFT)
 
-  // Para identificar de forma estable 1..3 por usuario
-  index Int
   label String?
 
   // Snapshot de entrada (desde StartJourneyScreen)
@@ -99,7 +97,6 @@ model Journey {
   // 1–1 (backrelation); la FK vive en Recommendation.journeyId
   recommendation Recommendation?
 
-  @@unique([userId, index]) // fuerza unicidad del "slot" 1..3 por usuario
   @@index([userId, createdAt]) // para listados por usuario
 }
 
