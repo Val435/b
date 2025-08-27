@@ -9,7 +9,7 @@ const TYPE_HINTS: Record<ImageKind, string | undefined> = {
   shopping: "shopping_mall",
   greens: "park",
   sports: "stadium",
-  property: "premise", // sesgo a vivienda
+  property: "street_address", // sesgo a vivienda
   area: undefined,
 };
 

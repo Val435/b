@@ -90,11 +90,16 @@ export async function fetchVerifiedImage(
     const regionCode   = opts?.regionCode   ?? "US";
     const photoIndex   = opts?.photoIndex ?? 0;
 
+    const includedType =
+      opts?.includedType && opts.includedType !== "premise"
+        ? opts.includedType
+        : undefined;
+
     const queries = [
-      [rawQuery, opts?.includedType, opts?.locationHint].filter(Boolean).join(" ").trim(),
+      [rawQuery, includedType, opts?.locationHint].filter(Boolean).join(" ").trim(),
       [rawQuery, opts?.locationHint].filter(Boolean).join(" ").trim(),
       rawQuery.trim(),
-      [rawQuery, opts?.includedType || "place"].filter(Boolean).join(" ").trim(),
+      [rawQuery, includedType || "place"].filter(Boolean).join(" ").trim(),
     ].filter(Boolean);
 
     const cleanedRaw = rawQuery
@@ -141,8 +146,8 @@ export async function fetchVerifiedImage(
         };
       }
 
-      if (opts?.includedType) {
-        body.includedType = opts.includedType;
+      if (includedType) {
+        body.includedType = includedType;
       }
 
       log("POST searchText payload:", JSON.stringify(body));
