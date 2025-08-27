@@ -9,7 +9,9 @@ const TYPE_HINTS: Record<ImageKind, string | undefined> = {
   shopping: "shopping_mall",
   greens: "park",
   sports: "stadium",
-  property: "street_address", // sesgo a vivienda
+  // Do NOT pass geocoding types like "street_address" to Places Text Search.
+  // For residential/property photos, omit includedType to avoid INVALID_ARGUMENT.
+  property: undefined,
   area: undefined,
 };
 

@@ -19,11 +19,14 @@ export const getRecommendations = async (
 
     const journey = await prisma.journey.create({
       data: {
-        userId,
         status: JourneyStatus.RUNNING,
         selectedState: userProfile.selectedState ?? null,
         selectedCities: userProfile.selectedCities ?? [],
         inputs: userProfile,
+        index: 0, // or another appropriate value
+        user: {
+          connect: { id: userId }
+        }
       },
     });
 
