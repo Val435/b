@@ -1,35 +1,74 @@
-import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction, RequestHandler } from "express";
 import { fetchRecommendationsFromOpenAI } from "../services/openaiService";
 import { saveRecommendation } from "../services/saveRecommendationService";
 import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const getRecommendations = async (
-  req: Request,
-  res: Response,
-  next: NextFunction
-): Promise<void> => {
+export const getRecommendations: RequestHandler = async (req, res, next) => {
   try {
-    console.log("📩 [Controller] Body recibido:", JSON.stringify(req.body, null, 2));
-    const userProfile = req.body.userProfile;
+    // @ts-ignore - inyectado por verifyToken
+    const authUser = req.user as { id?: number; email?: string };
+    const userProfile = req.body?.userProfile;
 
-
-     console.log("🔎 [Controller] Buscando usuario por email:", userProfile.email);
-    const user = await prisma.user.findUnique({
-      where: { email: userProfile.email },
-    });
-
-    if (!user) {
-      res.status(404).json({ error: "User not found by email" });
+    if (!authUser?.id) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    if (!userProfile) {
+      res.status(400).json({ error: "userProfile is required" });
       return;
     }
 
-    const recommendations = await fetchRecommendationsFromOpenAI(userProfile);
+    // Usuario autenticado
+    const user = await prisma.user.findUnique({ where: { id: authUser.id } });
+    if (!user) {
+      res.status(404).json({ error: "Auth user not found" });
+      return;
+    }
 
-    const saved = await saveRecommendation(recommendations, user.id, );
+    // Crear Journey con snapshot del perfil (puedes ajustar label si quieres)
+    const journey = await prisma.journey.create({
+      data: {
+        userId: user.id,
+        label: userProfile.label ?? null,
+        selectedState: userProfile.state ?? user.state ?? null,
+        selectedCities: Array.isArray(userProfile.city)
+          ? userProfile.city
+          : (user.city ?? []),
+        inputs: userProfile, // guardamos el perfil usado como snapshot
+        index: 0,
+        status: "RUNNING",
+      },
+      select: { id: true },
+    });
 
-    res.status(200).json({ message: "Recommendation saved", data: saved });
+    try {
+      // 1) pedir a OpenAI
+      const reco = await fetchRecommendationsFromOpenAI(userProfile);
+
+      // 2) guardar Recommendation SIEMPRE ligada al journey.id
+      const saved = await saveRecommendation(reco, user.id, journey.id);
+
+      // 3) marcar journey COMPLETED
+      await prisma.journey.update({
+        where: { id: journey.id },
+        data: { status: "COMPLETED", completedAt: new Date() },
+      });
+
+      res.status(200).json({
+        message: "Recommendation saved",
+        data: saved,
+        journeyId: journey.id,
+      });
+    } catch (inner) {
+      // si falla OpenAI o el guardado, cancelar el journey
+      await prisma.journey.update({
+        where: { id: journey.id },
+        data: { status: "CANCELLED" },
+      });
+      throw inner;
+    }
   } catch (error) {
     next(error);
   }

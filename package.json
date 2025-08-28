@@ -3,12 +3,12 @@
   "version": "0.0.1",
   "description": "Backend Eutopia",
   "main": "dist/server.js",
-"scripts": {
-  "dev": "ts-node-dev --respawn --clear src/server.ts",
-  "build": "npx prisma generate && rimraf dist && tsc && cp -r dist api/",
-  "start": "node dist/server.js",
-  "postinstall": "prisma generate"
-},
+  "scripts": {
+    "dev": "ts-node-dev --respawn --clear src/server.ts",
+    "build": "npx prisma generate && rimraf dist && tsc && cp -r dist api/",
+    "start": "node dist/server.js",
+    "postinstall": "prisma generate"
+  },
   "author": "",
   "license": "ISC",
   "dependencies": {

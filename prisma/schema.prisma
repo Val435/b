@@ -176,7 +176,7 @@ model School {
   description     String
   fullDescription String?
   imageUrl        String?
-  website         String
+  website         String? // ← nullable
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -187,7 +187,7 @@ model SocialLife {
   description     String
   fullDescription String?
   imageUrl        String?
-  website         String
+  website         String? // ← nullable
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -198,7 +198,7 @@ model Shopping {
   description     String
   fullDescription String?
   imageUrl        String?
-  website         String
+  website         String? // ← nullable
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -209,7 +209,7 @@ model GreenSpace {
   description     String
   fullDescription String?
   imageUrl        String?
-  website         String
+  website         String? // ← nullable
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -220,7 +220,7 @@ model Sport {
   description     String
   fullDescription String?
   imageUrl        String?
-  website         String
+  website         String? // ← nullable
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }

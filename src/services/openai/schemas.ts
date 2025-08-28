@@ -1,12 +1,13 @@
 import { z } from "zod";
 
+// ===== Escalares reutilizables =====
 export const nonEmptyText = z.string().min(20);
 export const urlString = z.string().regex(/^https?:\/\/\S+$/i);
 export const imageUrlString = z.string().regex(
   /^https:\/\/\S+\.(jpg|jpeg|png|webp)(\?.*)?$|^https:\/\/images\.unsplash\.com\/.*[?&]fm=(jpg|jpeg|png|webp)\b|^https:\/\/lh3\.googleusercontent\.com\/.+/i
 );
 
-// residential helpers
+// ===== Helpers residenciales =====
 export const RESIDENTIAL_TYPES = [
   "single_family","condo","condominium","townhouse",
   "apartment","duplex","triplex","loft",
@@ -18,20 +19,22 @@ export const isResidentialType = (t: string) =>
   (RESIDENTIAL_TYPES as readonly string[])
     .includes(t.toLowerCase().replace(/\s+/g, "_"));
 
+// ===== Place (sin .url() para evitar format:"uri") =====
 const placeSchema = z.object({
   name: z.string(),
   description: z.string(),
-  fullDescription: z.string().nullable().default(null),
-  imageUrl: z.string().url().nullable().default(null),
-  website: z.string().url().nullable().default(null),
+  fullDescription: z.string().nullable(),
+  imageUrl: imageUrlString.nullable(), // ← antes: z.string().url().nullable()
+  website: urlString.nullable(),       // ← antes: z.string().url().nullable()
 });
 
+// ===== Property =====
 export const propertySchema = z.object({
   address: z.string(),
   price: z.string(),
   description: z.string(),
   fullDescription: nonEmptyText,
-  imageUrls: z.array(imageUrlString).min(3).max(5),
+  imageUrls: z.array(imageUrlString).max(5).default([]), // sin .min(3)
   details: z.object({
     type: z.string()
       .transform(s => s.toLowerCase().replace(/\s+/g, "_"))
@@ -44,13 +47,14 @@ export const propertySchema = z.object({
   }),
 });
 
+// ===== Core =====
 export const coreSchema = z.object({
   recommendedAreas: z.array(z.object({
     name: z.string(),
     state: z.string(),
     reason: z.string(),
     fullDescription: nonEmptyText,
-    imageUrl: imageUrlString.optional(),
+    imageUrl: imageUrlString.nullable(), // sin .optional()
     demographics: z.object({
       raceEthnicity: z.object({
         white: z.number().int(),
@@ -76,8 +80,8 @@ export const coreSchema = z.object({
         }),
       }),
     }),
-    placesOfInterest: z.array(z.string()).min(2).max(5).optional(),
-    lifestyleTags: z.array(z.string()).min(2).max(6).optional(),
+    placesOfInterest: z.array(z.string()).max(5).default([]),
+    lifestyleTags: z.array(z.string()).max(6).default([]),
   })).length(3),
   propertySuggestion: z.object({
     fullDescription: nonEmptyText,
@@ -89,6 +93,7 @@ export const coreSchema = z.object({
   }),
 });
 
+// ===== Area Details =====
 export const areaDetailsSchema = z.object({
   name: z.string(),
   schools: z.array(placeSchema).length(3),
