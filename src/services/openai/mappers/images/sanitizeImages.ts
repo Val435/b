@@ -15,16 +15,22 @@ const TYPE_HINTS: Record<ImageKind, string | undefined> = {
 
 export async function sanitizeImages(parsed: any) {
   const ensureAreaImage = async (area: any) => {
-    const ensured = ensurePreferred(area.imageUrl, "area");
+    const ensured = ensurePreferred(area?.imageUrl, "area");
     let looked: string | null = null;
+
     try {
-      looked = await fetchVerifiedImage(`${area.name} ${area.state}`, {
-        locationHint: [area.name, area.state].filter(Boolean).join(", "),
+      const q1 = [area?.name, area?.state].filter(Boolean).join(" ");
+      looked = await fetchVerifiedImage(q1, {
+        locationHint: [area?.name, area?.state].filter(Boolean).join(", "),
       });
-      if (!looked) {
-        looked = await fetchVerifiedImage(area.name, { locationHint: area.state });
+
+      if (!looked && area?.name) {
+        looked = await fetchVerifiedImage(area.name, { locationHint: area?.state });
       }
-    } catch { looked = null; }
+    } catch {
+      looked = null;
+    }
+
     area.imageUrl = looked || ensured;
   };
 
@@ -37,72 +43,115 @@ export async function sanitizeImages(parsed: any) {
     areaName: string,
     areaState: string
   ) => {
-    if (!items) return;
+    if (!Array.isArray(items) || !items.length) return;
+
     const locationHint = [areaName, areaState].filter(Boolean).join(", ");
     const includedType = TYPE_HINTS[type];
-    const used = new Set<string>();
+    const used = new Set<string>(); // dedupe dentro de la lista
 
-    await Promise.all(items.map(async (it) => {
-      const processUrl = async (orig?: string, photoIndex = 0) => {
-        const ensured = ensurePreferred(orig, type);
-        let looked: string | null = null;
-        try {
-          looked = await fetchVerifiedImage(getName(it), { locationHint, includedType, photoIndex });
-          if (!looked) looked = await fetchVerifiedImage(getName(it), { locationHint, photoIndex });
-        } catch { looked = null; }
+    await Promise.all(
+      items.map(async (it) => {
+        const processUrl = async (orig?: string, photoIndex = 0) => {
+          const ensured = ensurePreferred(orig, type);
+          let looked: string | null = null;
 
-        // no fotos con pinta comercial para propiedades
-        if (type === "property" && looked && COMMERCIAL_HINTS.test(looked)) looked = null;
+          try {
+            // 1er intento con includedType (si aplica)
+            looked = await fetchVerifiedImage(getName(it), {
+              locationHint,
+              includedType,
+              photoIndex,
+            });
 
-        let finalUrl = looked || ensured;
-        if (used.has(finalUrl)) {
-          const alt = ensured !== finalUrl ? ensured : FALLBACKS[type];
-          finalUrl = used.has(alt) ? FALLBACKS[type] : alt;
+            // 2do intento sin includedType
+            if (!looked) {
+              looked = await fetchVerifiedImage(getName(it), {
+                locationHint,
+                photoIndex,
+              });
+            }
+          } catch {
+            looked = null;
+          }
+
+          // Evitar “pinta comercial” para propiedades (heurístico)
+          if (type === "property" && looked && COMMERCIAL_HINTS.test(looked)) {
+            looked = null;
+          }
+
+          let finalUrl = looked || ensured || FALLBACKS[type];
+
+          // Dedupe dentro de la lista
+          if (used.has(finalUrl)) {
+            const alt = ensured && ensured !== finalUrl ? ensured : FALLBACKS[type];
+            finalUrl = used.has(alt) ? FALLBACKS[type] : alt;
+          }
+          used.add(finalUrl);
+
+          return { finalUrl, lookedOk: !!looked };
+        };
+
+        // Para propiedades: array de imageUrls → asegurar [3..5]
+        if (type === "property") {
+          const current = Array.isArray(it.imageUrls) ? it.imageUrls.filter(Boolean) : [];
+          const targetLen = Math.min(Math.max(current.length || 0, 3), 5);
+
+          const originals = current.slice(0, targetLen);
+          const sanitized: string[] = [];
+
+          // Normaliza las que ya venían
+          for (let i = 0; i < originals.length; i++) {
+            const { finalUrl } = await processUrl(originals[i], i);
+            sanitized.push(finalUrl);
+          }
+
+          // Rellena hasta targetLen
+          while (sanitized.length < targetLen) {
+            const { finalUrl } = await processUrl(undefined, sanitized.length);
+            sanitized.push(finalUrl);
+          }
+
+          it.imageUrls = sanitized;
+        } else {
+          // Para las demás entidades (school/social/shopping/greens/sports):
+          // usar imageUrl simple
+          const { finalUrl } = await processUrl(it?.imageUrl);
+          it.imageUrl = finalUrl;
         }
-        used.add(finalUrl);
-        return { finalUrl, lookedOk: !!looked };
-      };
-
-      if (Array.isArray(it.imageUrls)) {
-        const targetLen = Math.min(Math.max(it.imageUrls.length, 3), 5);
-        const originals = it.imageUrls.slice(0, targetLen);
-        const sanitized: string[] = [];
-        for (let i = 0; i < originals.length; i++) {
-          const { finalUrl } = await processUrl(originals[i], i);
-          sanitized.push(finalUrl);
-        }
-        while (sanitized.length < targetLen) {
-          const { finalUrl } = await processUrl(undefined, sanitized.length);
-          sanitized.push(finalUrl);
-        }
-        it.imageUrls = sanitized;
-      } else {
-        const { finalUrl } = await processUrl(it.imageUrl);
-        it.imageUrl = finalUrl;
-      }
-    }));
+      })
+    );
   };
 
-  await Promise.all((parsed?.recommendedAreas ?? []).map(async (area: any) => {
-    const aName = area?.name ?? "";
-    const aState = area?.state ?? "";
+  // Procesa áreas
+  await Promise.all(
+    (parsed?.recommendedAreas ?? []).map(async (area: any) => {
+      const aName = area?.name ?? "";
+      const aState = area?.state ?? "";
 
-    await ensureAreaImage(area);
-    if (usedAreaImages.has(area.imageUrl)) {
-      const alt = FALLBACKS.area;
-      area.imageUrl = usedAreaImages.has(alt) ? ensurePreferred(area.imageUrl, "area") : alt;
-    }
-    usedAreaImages.add(area.imageUrl);
+      await ensureAreaImage(area);
 
-    await handleList(area?.schools,     "school",   (s) => s.name,    aName, aState);
-    await handleList(area?.socialLife,  "social",   (s) => s.name,    aName, aState);
-    await handleList(area?.shopping,    "shopping", (s) => s.name,    aName, aState);
-    await handleList(area?.greenSpaces, "greens",   (s) => s.name,    aName, aState);
-    await handleList(area?.sports,      "sports",   (s) => s.name,    aName, aState);
-    await handleList(area?.properties,  "property", (p) => p.address, aName, aState);
-  }));
+      // Dedupe entre áreas
+      if (area?.imageUrl) {
+        if (usedAreaImages.has(area.imageUrl)) {
+          const alt = FALLBACKS.area;
+          area.imageUrl = usedAreaImages.has(alt) ? ensurePreferred(area.imageUrl, "area") : alt;
+        }
+        usedAreaImages.add(area.imageUrl);
+      }
+
+      // Listas por tipo
+      await handleList(area?.schools, "school", (s) => s?.name ?? "", aName, aState);
+      await handleList(area?.socialLife, "social", (s) => s?.name ?? "", aName, aState);
+      await handleList(area?.shopping, "shopping", (s) => s?.name ?? "", aName, aState);
+      await handleList(area?.greenSpaces, "greens", (s) => s?.name ?? "", aName, aState);
+      await handleList(area?.sports, "sports", (s) => s?.name ?? "", aName, aState);
+
+      // Propiedades: asegurar 3..5 imágenes
+      await handleList(area?.properties, "property", (p) => p?.address ?? aName, aName, aState);
+    })
+  );
 
   return parsed;
 }
 
-export { FALLBACKS }; // útil para prompts
+export { FALLBACKS };

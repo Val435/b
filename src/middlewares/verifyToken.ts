@@ -1,25 +1,20 @@
+// middlewares/verifyToken.ts
+import { RequestHandler } from "express";
+import { verify } from "jsonwebtoken";
+// ... tus imports
 
-import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'secretito';
-
-export const verifyToken = (req: Request, res: Response, next: NextFunction): void => {
-  const authHeader = req.headers.authorization;
-
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    res.status(401).json({ error: 'Token no proporcionado' });
-    return;
-  }
-
-  const token = authHeader.split(' ')[1];
-
+export const verifyToken: RequestHandler = (req, res, next) => {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const auth = req.headers.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    if (!token) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+    // verifica token → set req.user
+    const payload = verify(token, process.env.JWT_SECRET!);
     // @ts-ignore
-    req.user = decoded;
+    req.user = payload;
     next();
-  } catch (err) {
-    res.status(401).json({ error: 'Token inválido o expirado' });
+  } catch (e) {
+    res.status(401).json({ error: "Unauthorized" });
   }
 };

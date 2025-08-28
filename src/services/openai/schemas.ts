@@ -21,9 +21,9 @@ export const isResidentialType = (t: string) =>
 const placeSchema = z.object({
   name: z.string(),
   description: z.string(),
-  fullDescription: nonEmptyText,
-  website: urlString,
-  imageUrl: imageUrlString,
+  fullDescription: z.string().nullable().default(null),
+  imageUrl: z.string().url().nullable().default(null),
+  website: z.string().url().nullable().default(null),
 });
 
 export const propertySchema = z.object({

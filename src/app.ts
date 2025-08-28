@@ -7,6 +7,7 @@ import userRoutes from './routes/userRoutes';
 import { errorHandler } from './middlewares/errorHandler'; 
 import openaiRoutes from './routes/openaiRoutes';
 import recommendationRoutes from './routes/recommendationRoutes';
+import journeyRoutes from './routes/journeyRoutes';
 
 dotenv.config();
 const app = express();
@@ -20,6 +21,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes);
 app.use('/api/openai', openaiRoutes);
 app.use("/api/recommendations", recommendationRoutes);
+app.use('/api/journeys', journeyRoutes);
 
 app.get('/api/ping', (_req, res) => {
   res.json({ message: 'pong' });

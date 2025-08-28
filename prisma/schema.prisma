@@ -1,17 +1,8 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+// schema.prisma
 
 generator client {
   provider = "prisma-client-js"
 }
-
-// generator erd {
-//   provider = "prisma-erd-generator"
-//   output   = "C:/Users/karla/Desktop/erd.svg"
-// }
 
 datasource db {
   provider = "postgresql"
@@ -36,20 +27,20 @@ model User {
   countryCode      String
   name             String?
   state            String?
-  city             String[]
+  city             String[] @default([]) // default []
   environment      String?
-  education1       String[]
-  education2       String[]
-  family           String[]
-  employment1      String[]
-  employment2      String[]
-  socialLife       String[]
-  hobbies          String[]
-  transportation   String[]
-  pets             String[]
-  greenSpace       String[]
-  shopping         String[]
-  restaurants      String[]
+  education1       String[] @default([]) // default []
+  education2       String[] @default([]) // default []
+  family           String[] @default([]) // default []
+  employment1      String[] @default([]) // default []
+  employment2      String[] @default([]) // default []
+  socialLife       String[] @default([]) // default []
+  hobbies          String[] @default([]) // default []
+  transportation   String[] @default([]) // default []
+  pets             String[] @default([]) // default []
+  greenSpace       String[] @default([]) // default []
+  shopping         String[] @default([]) // default []
+  restaurants      String[] @default([]) // default []
   occupancy        String?
   property         String?
   timeframe        String?
@@ -61,7 +52,7 @@ model User {
 
   otpCodes       OtpCode[]
   Recommendation Recommendation[]
-  journeys       Journey[] // ← NUEVO: relación con Journey (máx. 3 por usuario a nivel lógico)
+  journeys       Journey[]
 }
 
 model OtpCode {
@@ -90,6 +81,9 @@ model Journey {
   selectedCities String[] @default([])
   inputs         Json?
 
+  // Orden/posición que ya usas en create
+  index Int @default(0)
+
   // Relaciones
   user   User @relation(fields: [userId], references: [id])
   userId Int
@@ -97,7 +91,7 @@ model Journey {
   // 1–1 (backrelation); la FK vive en Recommendation.journeyId
   recommendation Recommendation?
 
-  @@index([userId, createdAt]) // para listados por usuario
+  @@index([userId, createdAt])
 }
 
 model Recommendation {
@@ -107,7 +101,7 @@ model Recommendation {
   user   User @relation(fields: [userId], references: [id])
   userId Int
 
-  // ← NUEVO: vínculo 1–1 con Journey (FK aquí)
+  // vínculo 1–1 con Journey (FK aquí)
   journey   Journey? @relation(fields: [journeyId], references: [id])
   journeyId Int?     @unique
 
@@ -115,7 +109,7 @@ model Recommendation {
 
   areas RecommendedArea[]
 
-  @@index([userId, createdAt]) // para obtener las más recientes por usuario
+  @@index([userId, createdAt])
 }
 
 model RecommendedArea {
@@ -140,8 +134,8 @@ model RecommendedArea {
   greenSpaces GreenSpace[]
   sports      Sport[]
 
-  placesOfInterest String[]
-  lifestyleTags    String[]
+  placesOfInterest String[]   @default([])
+  lifestyleTags    String[]   @default([])
   properties       Property[]
 }
 
@@ -237,7 +231,7 @@ model Property {
   price           String
   description     String
   fullDescription String?
-  imageUrls       String[]
+  imageUrls       String[] @default([]) // default []
   type            String
   builtYear       Int
   lotSizeSqFt     Int
