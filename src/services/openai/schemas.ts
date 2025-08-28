@@ -31,7 +31,7 @@ export const propertySchema = z.object({
   price: z.string(),
   description: z.string(),
   fullDescription: nonEmptyText,
-  imageUrls: z.array(imageUrlString).max(5).default([]),
+  imageUrls: z.array(imageUrlString).min(3).max(5),
   details: z.object({
     type: z.string()
       .transform(s => s.toLowerCase().replace(/\s+/g, "_"))

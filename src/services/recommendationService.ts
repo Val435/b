@@ -2,63 +2,59 @@ import { PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
-export const getAllRecommendedAreas = (userId: number, journeyId?: number) =>
+export const getAllRecommendedAreas = (userId: number) =>
   prisma.recommendedArea.findMany({
-    where: { recommendation: { userId, journeyId } },
+    where: { recommendation: { userId } },
   });
 
-export const getPropertiesByUser = (userId: number, journeyId?: number) =>
+export const getPropertiesByUser = (userId: number) =>
   prisma.property.findMany({
     where: {
-      area: { recommendation: { userId, journeyId } },
+      area: { recommendation: { userId } },
     },
   });
 
-export const getSchoolsByUser = (userId: number, journeyId?: number) =>
+export const getSchoolsByUser = (userId: number) =>
   prisma.school.findMany({
     where: {
-      area: { recommendation: { userId, journeyId } },
+      area: { recommendation: { userId } },
     },
   });
 
-export const getRaceEthnicityByUser = (userId: number, journeyId?: number) =>
+export const getRaceEthnicityByUser = (userId: number) =>
   prisma.raceEthnicity.findMany({
     where: {
-      area: { recommendation: { userId, journeyId } },
+      area: { recommendation: { userId } },
     },
   });
 
-export const getIncomeLevelsByUser = (userId: number, journeyId?: number) =>
+export const getIncomeLevelsByUser = (userId: number) =>
   prisma.incomeLevels.findMany({
     where: {
-      area: { recommendation: { userId, journeyId } },
+      area: { recommendation: { userId } },
     },
   });
 
-export const getCrimeDataByUser = (userId: number, journeyId?: number) =>
+export const getCrimeDataByUser = (userId: number) =>
   prisma.crimeData.findMany({
     where: {
-      area: { recommendation: { userId, journeyId } },
+      area: { recommendation: { userId } },
     },
   });
 
-export const getPropertySuggestionByUser = (userId: number, journeyId?: number) =>
+export const getPropertySuggestionByUser = (userId: number) =>
   prisma.recommendation.findFirst({
-    where: { userId, journeyId },
+    where: { userId },
     include: { propertySuggestion: true },
   });
 
 
 
 
-export const getFullRecommendationByEmail = (
-  email: string,
-  journeyId?: number
-) =>
+export const getFullRecommendationByEmail = (email: string) =>
   prisma.recommendation.findFirst({
     where: {
       user: { email },
-      journeyId,
     },
     include: {
       propertySuggestion: true,

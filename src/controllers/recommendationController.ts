@@ -17,8 +17,7 @@ import { safeUrl } from "../utils/url";
 export const fetchRecommendedAreas = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = Number(req.params.userId);
-    const journeyId = req.params.journeyId ? Number(req.params.journeyId) : undefined;
-    const areas = await getAllRecommendedAreas(userId, journeyId);
+    const areas = await getAllRecommendedAreas(userId);
     res.json(areas);
   } catch (error) {
     next(error);
@@ -28,8 +27,7 @@ export const fetchRecommendedAreas = async (req: Request, res: Response, next: N
 export const fetchProperties = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = Number(req.params.userId);
-    const journeyId = req.params.journeyId ? Number(req.params.journeyId) : undefined;
-    const properties = await getPropertiesByUser(userId, journeyId);
+    const properties = await getPropertiesByUser(userId);
     res.json(properties);
   } catch (error) {
     next(error);
@@ -39,8 +37,7 @@ export const fetchProperties = async (req: Request, res: Response, next: NextFun
 export const fetchSchools = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = Number(req.params.userId);
-    const journeyId = req.params.journeyId ? Number(req.params.journeyId) : undefined;
-    const schools = await getSchoolsByUser(userId, journeyId);
+    const schools = await getSchoolsByUser(userId);
     res.json(schools);
   } catch (error) {
     next(error);
@@ -50,8 +47,7 @@ export const fetchSchools = async (req: Request, res: Response, next: NextFuncti
 export const fetchRaceEthnicity = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = Number(req.params.userId);
-    const journeyId = req.params.journeyId ? Number(req.params.journeyId) : undefined;
-    const races = await getRaceEthnicityByUser(userId, journeyId);
+    const races = await getRaceEthnicityByUser(userId);
     res.json(races);
   } catch (error) {
     next(error);
@@ -61,8 +57,7 @@ export const fetchRaceEthnicity = async (req: Request, res: Response, next: Next
 export const fetchIncomeLevels = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = Number(req.params.userId);
-    const journeyId = req.params.journeyId ? Number(req.params.journeyId) : undefined;
-    const income = await getIncomeLevelsByUser(userId, journeyId);
+    const income = await getIncomeLevelsByUser(userId);
     res.json(income);
   } catch (error) {
     next(error);
@@ -72,8 +67,7 @@ export const fetchIncomeLevels = async (req: Request, res: Response, next: NextF
 export const fetchCrimeData = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = Number(req.params.userId);
-    const journeyId = req.params.journeyId ? Number(req.params.journeyId) : undefined;
-    const crime = await getCrimeDataByUser(userId, journeyId);
+    const crime = await getCrimeDataByUser(userId);
     res.json(crime);
   } catch (error) {
     next(error);
@@ -83,8 +77,7 @@ export const fetchCrimeData = async (req: Request, res: Response, next: NextFunc
 export const fetchPropertySuggestion = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = Number(req.params.userId);
-    const journeyId = req.params.journeyId ? Number(req.params.journeyId) : undefined;
-    const suggestion = await getPropertySuggestionByUser(userId, journeyId);
+    const suggestion = await getPropertySuggestionByUser(userId);
     res.json(suggestion?.propertySuggestion || null);
   } catch (error) {
     next(error);
@@ -98,7 +91,6 @@ export const fetchFullRecommendation = async (
 ) => {
   try {
     const email = req.params.email;
-    const journeyId = req.params.journeyId ? Number(req.params.journeyId) : undefined;
 
     // 1️⃣ Buscar el usuario por email
     const user = await prisma.user.findUnique({
@@ -111,7 +103,7 @@ export const fetchFullRecommendation = async (
 
     // 2️⃣ Usar el userId para obtener la recomendación
     const recommendation = await prisma.recommendation.findFirst({
-      where: { userId: user.id, journeyId },
+      where: { userId: user.id },
       include: {
         propertySuggestion: true,
         areas: {

@@ -46,43 +46,6 @@ function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-// Simple global concurrency limiter to avoid 429 RATE_LIMIT_EXCEEDED
-// Default to a conservative level; configurable via env.
-const MAX_CONCURRENT_PLACES = Number(process.env.PLACES_CONCURRENCY || 4);
-let activePlacesRequests = 0;
-const waitQueue: Array<() => void> = [];
-
-async function acquireSlot() {
-  if (activePlacesRequests < MAX_CONCURRENT_PLACES) {
-    activePlacesRequests++;
-    return;
-  }
-  await new Promise<void>((resolve) => waitQueue.push(resolve));
-  activePlacesRequests++;
-}
-
-function releaseSlot() {
-  activePlacesRequests = Math.max(0, activePlacesRequests - 1);
-  const next = waitQueue.shift();
-  if (next) next();
-}
-
-async function limitedFetch(input: any, init?: any, retries = 2) {
-  await acquireSlot();
-  try {
-    const res = await fetch(input as any, init as any);
-    if (res.status === 429 && retries > 0) {
-      const ra = res.headers.get("retry-after");
-      const base = ra ? Number(ra) * 1000 : 600 + Math.floor(Math.random() * 400);
-      await delay(base);
-      return await limitedFetch(input, init, retries - 1);
-    }
-    return res;
-  } finally {
-    releaseSlot();
-  }
-}
-
 // --- Filtros anti-comercial y preferencia residencial ---
 const BAD_TYPES = new Set([
   "accounting","bank","insurance_agency","lawyer","real_estate_agency",
@@ -127,16 +90,11 @@ export async function fetchVerifiedImage(
     const regionCode   = opts?.regionCode   ?? "US";
     const photoIndex   = opts?.photoIndex ?? 0;
 
-    const includedType =
-      opts?.includedType && opts.includedType !== "premise"
-        ? opts.includedType
-        : undefined;
-
     const queries = [
-      [rawQuery, includedType, opts?.locationHint].filter(Boolean).join(" ").trim(),
+      [rawQuery, opts?.includedType, opts?.locationHint].filter(Boolean).join(" ").trim(),
       [rawQuery, opts?.locationHint].filter(Boolean).join(" ").trim(),
       rawQuery.trim(),
-      [rawQuery, includedType || "place"].filter(Boolean).join(" ").trim(),
+      [rawQuery, opts?.includedType || "place"].filter(Boolean).join(" ").trim(),
     ].filter(Boolean);
 
     const cleanedRaw = rawQuery
@@ -183,14 +141,12 @@ export async function fetchVerifiedImage(
         };
       }
 
-      // Places Text Search v1 expects `includedTypes` (array) from the supported types list.
-      // Do not pass geocoding types like "premise" or "street_address" here.
-      if (includedType) {
-        body.includedTypes = [includedType];
+      if (opts?.includedType) {
+        body.includedType = opts.includedType;
       }
 
       log("POST searchText payload:", JSON.stringify(body));
-      const searchRes = await limitedFetch("https://places.googleapis.com/v1/places:searchText", {
+      const searchRes = await fetch("https://places.googleapis.com/v1/places:searchText", {
         method: "POST",
         headers: baseHeaders,
         body: JSON.stringify(body),
@@ -278,7 +234,7 @@ export async function fetchVerifiedImage(
         `?maxWidthPx=${maxWidthPx}&maxHeightPx=${maxHeightPx}&skipHttpRedirect=true`;
 
       log("GET media:", mediaUrl);
-      const photoRes = await limitedFetch(mediaUrl, {
+      const photoRes = await fetch(mediaUrl, {
         headers: { "X-Goog-Api-Key": API_KEY },
       });
 
