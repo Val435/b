@@ -50,9 +50,52 @@ model User {
   grossAnnual      Int?
   credit           String?
 
-  otpCodes       OtpCode[]
-  Recommendation Recommendation[]
-  journeys       Journey[]
+  otpCodes           OtpCode[]
+  Recommendation     Recommendation[]
+  journeys           Journey[]
+  UserProfileVersion UserProfileVersion[]
+}
+
+model UserProfileVersion {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  // relaciones
+  user      User    @relation(fields: [userId], references: [id])
+  userId    Int
+  journey   Journey @relation(fields: [journeyId], references: [id])
+  journeyId Int     @unique // 1 versión por Journey; quita @unique si quieres varias
+
+  // ====== copia de campos del perfil en el momento ======
+  name             String?
+  email            String?
+  phone            String?
+  countryCode      String?
+  state            String?
+  city             String[] @default([])
+  environment      String?
+  education1       String[] @default([])
+  education2       String[] @default([])
+  family           String[] @default([])
+  employment1      String[] @default([])
+  employment2      String[] @default([])
+  socialLife       String[] @default([])
+  hobbies          String[] @default([])
+  transportation   String[] @default([])
+  pets             String[] @default([])
+  greenSpace       String[] @default([])
+  shopping         String[] @default([])
+  restaurants      String[] @default([])
+  occupancy        String?
+  property         String?
+  timeframe        String?
+  priceRange       String?
+  downPayment      String?
+  employmentStatus String?
+  grossAnnual      Int?
+  credit           String?
+
+  @@index([userId, createdAt])
 }
 
 model OtpCode {
@@ -89,7 +132,8 @@ model Journey {
   userId Int
 
   // 1–1 (backrelation); la FK vive en Recommendation.journeyId
-  recommendation Recommendation?
+  recommendation     Recommendation?
+  UserProfileVersion UserProfileVersion?
 
   @@index([userId, createdAt])
 }
