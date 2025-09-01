@@ -12,6 +12,10 @@ if (!API_KEY) {
 
 const DEBUG = (process.env.PLACES_DEBUG || "").toLowerCase() === "true";
 
+// Recommended sizes: 1200x800
+const DEFAULT_MAX_WIDTH_PX = Number(process.env.PLACES_MAX_WIDTH_PX) || 1200;
+const DEFAULT_MAX_HEIGHT_PX = Number(process.env.PLACES_MAX_HEIGHT_PX) || 800;
+
 function maskKey(k: string) {
   if (!k) return "<empty>";
   return k.length <= 8 ? "<short>" : k.slice(0, 4) + "…" + k.slice(-4);
@@ -19,6 +23,25 @@ function maskKey(k: string) {
 
 function log(...args: any[]) {
   if (DEBUG) console.log(...args);
+}
+
+// --- simple in-memory cache ---
+const CACHE_TTL_MS = 1000 * 60 * 60; // 1 hour
+type CacheEntry = { photoUri: string; expiresAt: number };
+const queryCache = new Map<string, CacheEntry>();
+
+function getCachedPhoto(query: string) {
+  const entry = queryCache.get(query);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    queryCache.delete(query);
+    return undefined;
+  }
+  return entry.photoUri;
+}
+
+function setCachedPhoto(query: string, uri: string) {
+  queryCache.set(query, { photoUri: uri, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
 async function safeText(res: Response) {
@@ -82,20 +105,29 @@ export async function fetchVerifiedImage(
   }
 ): Promise<string | null> {
   try {
+    const cached = getCachedPhoto(rawQuery);
+    if (cached !== undefined) {
+      console.log(`[Places] cache hit for "${rawQuery}"`);
+      return cached;
+    }
+
     if (!API_KEY) return null;
 
-    const maxWidthPx  = opts?.maxWidthPx  ?? 1200;
-    const maxHeightPx = opts?.maxHeightPx ?? 800;
+    const maxWidthPx  = opts?.maxWidthPx  ?? DEFAULT_MAX_WIDTH_PX;
+    const maxHeightPx = opts?.maxHeightPx ?? DEFAULT_MAX_HEIGHT_PX;
     const languageCode = opts?.languageCode ?? "en";
     const regionCode   = opts?.regionCode   ?? "US";
     const photoIndex   = opts?.photoIndex ?? 0;
 
-    const queries = [
-      [rawQuery, opts?.includedType, opts?.locationHint].filter(Boolean).join(" ").trim(),
-      [rawQuery, opts?.locationHint].filter(Boolean).join(" ").trim(),
-      rawQuery.trim(),
-      [rawQuery, opts?.includedType || "place"].filter(Boolean).join(" ").trim(),
-    ].filter(Boolean);
+    const seen = new Set<string>();
+    const queries: string[] = [];
+    const add = (q: string | undefined) => {
+      const val = q?.trim();
+      if (val && !seen.has(val)) {
+        queries.push(val);
+        seen.add(val);
+      }
+    };
 
     const cleanedRaw = rawQuery
       .replace(/[’'&]/g, " ")
@@ -103,16 +135,24 @@ export async function fetchVerifiedImage(
       .trim();
     const normQuery = cleanedRaw.toLowerCase();
 
+    add([rawQuery, opts?.locationHint].filter(Boolean).join(" "));
+    add(rawQuery);
+
+    if (opts?.includedType) {
+      add([rawQuery, opts.includedType, opts.locationHint]
+        .filter(Boolean)
+        .join(" "));
+      add([rawQuery, opts.includedType].filter(Boolean).join(" "));
+    }
+
     if (cleanedRaw && cleanedRaw !== rawQuery) {
-      queries.push(
-        [cleanedRaw, opts?.locationHint].filter(Boolean).join(" ").trim()
-      );
+      add([cleanedRaw, opts?.locationHint].filter(Boolean).join(" "));
     }
 
     // 👇 sesgo a residencial (quitamos “business/building”)
-    queries.push(`${rawQuery} house`.trim());
-    queries.push(`${rawQuery} home`.trim());
-    queries.push(`${rawQuery} residential`.trim());
+    add(`${rawQuery} house`);
+    add(`${rawQuery} home`);
+    add(`${rawQuery} residential`);
 
     const baseHeaders: Record<string, string> = {
       "Content-Type": "application/json",
@@ -123,7 +163,7 @@ export async function fetchVerifiedImage(
 
     log(" PLACES_DEBUG=ON  key=", maskKey(API_KEY));
     log(" queries to try:", queries);
-
+    let photoUrl: string | null = null;
     for (const textQuery of queries) {
       const body: any = {
         textQuery,
@@ -251,11 +291,10 @@ export async function fetchVerifiedImage(
         const j = (await photoRes.json()) as { photoUri?: string };
         log("media JSON:", j);
         if (j.photoUri) {
-          const uri = j.photoUri.startsWith("http")
+          photoUrl = j.photoUri.startsWith("http")
             ? j.photoUri
             : `https:${j.photoUri}`;
-          console.log("Foto encontrada:", uri);
-          return uri;
+          console.log("Foto encontrada:", photoUrl);
         } else {
           log("media JSON sin photoUri");
         }
@@ -263,13 +302,17 @@ export async function fetchVerifiedImage(
         const loc = photoRes.headers.get("location");
         log("media redirect Location:", loc);
         if (loc) {
-          const url = loc.startsWith("http") ? loc : `https:${loc}`;
-          console.log("Foto (Location):", url);
-          return url;
+          photoUrl = loc.startsWith("http") ? loc : `https:${loc}`;
+          console.log("Foto (Location):", photoUrl);
         }
       }
+      if (photoUrl) break;
 
       await delay(200);
+    }
+
+    if (photoUrl) {
+      return photoUrl;
     }
 
     console.log("exhaust queries without usable photo for:", rawQuery);
