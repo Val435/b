@@ -54,7 +54,7 @@ export const coreSchema = z.object({
     state: z.string(),
     reason: z.string(),
     fullDescription: nonEmptyText,
-    imageUrl: imageUrlString.nullable(), // sin .optional()
+    imageUrl: imageUrlString.nullable(),
     demographics: z.object({
       raceEthnicity: z.object({
         white: z.number().int(),
@@ -82,7 +82,7 @@ export const coreSchema = z.object({
     }),
     placesOfInterest: z.array(z.string()).max(5).default([]),
     lifestyleTags: z.array(z.string()).max(6).default([]),
-  })).length(3),
+  })).min(3).max(10), // <-- aquí cambiamos length(3) a rango
   propertySuggestion: z.object({
     fullDescription: nonEmptyText,
     type: z.string()
@@ -96,10 +96,10 @@ export const coreSchema = z.object({
 // ===== Area Details =====
 export const areaDetailsSchema = z.object({
   name: z.string(),
-  schools: z.array(placeSchema).length(3),
-  socialLife: z.array(placeSchema).length(3),
-  shopping: z.array(placeSchema).length(3),
-  greenSpaces: z.array(placeSchema).length(3),
-  sports: z.array(placeSchema).length(3),
-  properties: z.array(propertySchema).length(3),
+  schools: z.array(placeSchema).min(3).max(10),
+  socialLife: z.array(placeSchema).min(3).max(10),
+  shopping: z.array(placeSchema).min(3).max(10),
+  greenSpaces: z.array(placeSchema).min(3).max(10),
+  sports: z.array(placeSchema).min(3).max(10),
+  properties: z.array(propertySchema).min(3).max(10),
 });

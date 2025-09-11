@@ -23,7 +23,7 @@ export function buildProfileVersionData(userId: number, journeyId: number, profi
     phone: p.phone ?? null,
     countryCode: p.countryCode ?? null,
     state: p.state ?? null,
-    city: toStringArray(p.city),
+    city: p.city ?? null,
 
     environment: p.environment ?? null,
     education1: toStringArray(p.education1),
@@ -51,7 +51,7 @@ export function buildProfileVersionData(userId: number, journeyId: number, profi
 }
 
 /**
- * Fusiona: base(User) + selectedState/selectedCities del Journey + inputs.userProfile
+ * Fusiona: base(User) + selectedState/selectedCity del Journey + inputs.userProfile
  * Este “mergedProfile” es el que usarás:
  *   1) para crear el UserProfileVersion
  *   2) para llamar a OpenAI
@@ -66,8 +66,6 @@ export function mergeProfileForJourney(base: AnyRec, journey: AnyRec) {
   };
 
   if (journey?.selectedState != null) merged.state = journey.selectedState;
-  if (Array.isArray(journey?.selectedCities) && journey.selectedCities.length > 0) {
-    merged.city = journey.selectedCities;
-  }
+  if (journey?.selectedCity != null) merged.city = journey.selectedCity;
   return merged;
 }

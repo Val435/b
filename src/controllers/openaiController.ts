@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction, RequestHandler } from "express";
+import { RequestHandler } from "express";
 import { fetchRecommendationsFromOpenAI } from "../services/openaiService";
 import { saveRecommendation } from "../services/saveRecommendationService";
 import { PrismaClient } from "@prisma/client";
@@ -6,11 +6,10 @@ import { buildProfileVersionData, mergeProfileForJourney } from "../services/pro
 
 const prisma = new PrismaClient();
 
-
-
 export const getRecommendations: RequestHandler = async (req, res, next) => {
   try {
     const { userProfile, journeySnapshot } = req.body || {};
+
     if (!userProfile?.email) {
       res.status(400).json({ error: "userProfile.email is required" });
       return;
@@ -27,20 +26,18 @@ export const getRecommendations: RequestHandler = async (req, res, next) => {
         userId: user.id,
         label: journeySnapshot?.label ?? "First journey",
         selectedState: journeySnapshot?.selectedState ?? userProfile.state ?? null,
-        selectedCities: Array.isArray(journeySnapshot?.selectedCities)
-          ? journeySnapshot.selectedCities
-          : (Array.isArray(userProfile.city) ? userProfile.city : []),
-        inputs: journeySnapshot?.inputs ?? { userProfile }, // opcional: guarda trace
+        selectedCity: journeySnapshot?.selectedCity ?? userProfile.city ?? null,
+        inputs: journeySnapshot?.inputs ?? { userProfile },
         status: "RUNNING",
       },
-      select: { id: true, selectedState: true, selectedCities: true, inputs: true },
+      select: { id: true, selectedState: true, selectedCity: true, inputs: true },
     });
 
     // Fusionar perfil efectivo: base(user) + snapshot enviado
     const base = user;
     const pseudoJourney = {
       selectedState: journey.selectedState,
-      selectedCities: journey.selectedCities,
+      selectedCity: journey.selectedCity,
       inputs: { userProfile }, // lo que enviaste
     };
     const mergedProfile = mergeProfileForJourney(base, pseudoJourney);
@@ -67,4 +64,3 @@ export const getRecommendations: RequestHandler = async (req, res, next) => {
     next(err);
   }
 };
-

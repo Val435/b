@@ -27,7 +27,7 @@ model User {
   countryCode      String
   name             String?
   state            String?
-  city             String[] @default([]) // default []
+  city             String?
   environment      String?
   education1       String[] @default([]) // default []
   education2       String[] @default([]) // default []
@@ -72,7 +72,7 @@ model UserProfileVersion {
   phone            String?
   countryCode      String?
   state            String?
-  city             String[] @default([])
+  city             String?
   environment      String?
   education1       String[] @default([])
   education2       String[] @default([])
@@ -120,9 +120,9 @@ model Journey {
   label String?
 
   // Snapshot de entrada (desde StartJourneyScreen)
-  selectedState  String?
-  selectedCities String[] @default([])
-  inputs         Json?
+  selectedState String?
+  selectedCity  String?
+  inputs        Json?
 
   // Orden/posición que ya usas en create
   index Int @default(0)

@@ -12,7 +12,7 @@ export const createJourney: RequestHandler = async (req, res, next) => {
   try {
     // @ts-ignore – agregado por verifyToken
     const authUser = req.user as { id?: number; email?: string };
-    const { label, selectedState, selectedCities = [], inputs } = req.body || {};
+    const { label, selectedState, selectedCity, inputs } = req.body || {};
 
     if (!authUser?.id) {
       res.status(401).json({ success: false, error: "Unauthorized" });
@@ -32,7 +32,7 @@ export const createJourney: RequestHandler = async (req, res, next) => {
         userId: authUser.id,
         label: label ?? null,
         selectedState: selectedState ?? null,
-        selectedCities: Array.isArray(selectedCities) ? selectedCities : [],
+        selectedCity: selectedCity ?? null,
         inputs: inputs ?? null,
         index: nextIndex,
        
@@ -41,7 +41,7 @@ export const createJourney: RequestHandler = async (req, res, next) => {
         id: true,
         label: true,
         selectedState: true,
-        selectedCities: true,
+        selectedCity: true,
         status: true,
         index: true,
         createdAt: true,
@@ -156,7 +156,7 @@ export const listJourneys: RequestHandler = async (req, res, next) => {
       id: j.id,
       label: j.label,
       selectedState: j.selectedState,
-      selectedCities: j.selectedCities,
+      selectedCity: j.selectedCity,
       status: j.status,
       index: j.index,
       createdAt: j.createdAt,
@@ -204,7 +204,7 @@ export const getJourney: RequestHandler = async (req, res, next) => {
       id: journey.id,
       label: journey.label,
       selectedState: journey.selectedState,
-      selectedCities: journey.selectedCities,
+      selectedCity: journey.selectedCity,
       status: journey.status,
       index: journey.index,
       createdAt: journey.createdAt,

@@ -4,7 +4,7 @@ import prisma from "../config/prisma";
 export async function saveRecommendation(
   outputParsed: any,
   userId: number,
-  journeyId: number // ← AHORA REQUERIDO
+  journeyId: number
 ) {
   if (!Number.isFinite(journeyId)) {
     throw new Error("journeyId is required to save a recommendation");
@@ -12,14 +12,13 @@ export async function saveRecommendation(
 
   const { recommendedAreas = [], propertySuggestion = null } = outputParsed ?? {};
 
-  return await prisma.$transaction(async (tx) => {
-    // 1) Encabezado Recommendation con journeyId SIEMPRE
+  // 1) Transacción principal: Recommendation + Areas + datos demográficos
+  const { recommendation, areasMeta } = await prisma.$transaction(async (tx) => {
     const recommendation = await tx.recommendation.create({
       data: { userId, journeyId },
       select: { id: true, createdAt: true, userId: true, journeyId: true },
     });
 
-    // 2) PropertySuggestion (opcional)
     if (propertySuggestion) {
       await tx.propertySuggestion.create({
         data: {
@@ -32,7 +31,16 @@ export async function saveRecommendation(
       });
     }
 
-    // 3) Áreas y relacionados
+    const areasMeta: {
+      areaId: number;
+      schools: any[];
+      socialLife: any[];
+      shopping: any[];
+      greenSpaces: any[];
+      sports: any[];
+      properties: any[];
+    }[] = [];
+
     for (const area of recommendedAreas) {
       const {
         name,
@@ -45,15 +53,14 @@ export async function saveRecommendation(
         shopping = [],
         greenSpaces = [],
         sports = [],
-        placesOfInterest = [],
-        lifestyleTags = [],
         properties = [],
         imageUrl = null,
+        lifestyleTags = [],
+        placesOfInterest = [],
       } = area;
 
       const { raceEthnicity, incomeLevels, crimeData } = demographics;
 
-      // Área
       const savedArea = await tx.recommendedArea.create({
         data: {
           name,
@@ -62,33 +69,16 @@ export async function saveRecommendation(
           fullDescription: fullDescription ?? null,
           imageUrl: imageUrl ?? null,
           recommendationId: recommendation.id,
-          placesOfInterest,
           lifestyleTags,
+          placesOfInterest,
         },
       });
 
       const areaId = savedArea.id;
 
       // Demográficos
-      await tx.raceEthnicity.create({
-        data: {
-          white: raceEthnicity.white,
-          hispanic: raceEthnicity.hispanic,
-          asian: raceEthnicity.asian,
-          black: raceEthnicity.black,
-          other: raceEthnicity.other,
-          areaId,
-        },
-      });
-
-      await tx.incomeLevels.create({
-        data: {
-          perCapitaIncome: incomeLevels.perCapitaIncome,
-          medianHouseholdIncome: incomeLevels.medianHouseholdIncome,
-          areaId,
-        },
-      });
-
+      await tx.raceEthnicity.create({ data: { ...raceEthnicity, areaId } });
+      await tx.incomeLevels.create({ data: { ...incomeLevels, areaId } });
       await tx.crimeData.create({
         data: {
           violentCrimes: crimeData.numberOfCrimes.violent,
@@ -101,98 +91,69 @@ export async function saveRecommendation(
         },
       });
 
-      // Schools
-      if (schools.length) {
-        await tx.school.createMany({
-          data: schools.map((s: any) => ({
-            name: s.name,
-            description: s.description,
-            fullDescription: s.fullDescription ?? null,
-            imageUrl: s.imageUrl ?? null,
-            website: s.website ?? null, // ← ahora nullable en Prisma
-            areaId,
-          })),
-        });
-      }
-
-      // Social life
-      if (socialLife.length) {
-        await tx.socialLife.createMany({
-          data: socialLife.map((x: any) => ({
-            name: x.name,
-            description: x.description,
-            fullDescription: x.fullDescription ?? null,
-            imageUrl: x.imageUrl ?? null,
-            website: x.website ?? null,
-            areaId,
-          })),
-        });
-      }
-
-      // Shopping
-      if (shopping.length) {
-        await tx.shopping.createMany({
-          data: shopping.map((x: any) => ({
-            name: x.name,
-            description: x.description,
-            fullDescription: x.fullDescription ?? null,
-            imageUrl: x.imageUrl ?? null,
-            website: x.website ?? null,
-            areaId,
-          })),
-        });
-      }
-
-      // Green spaces
-      if (greenSpaces.length) {
-        await tx.greenSpace.createMany({
-          data: greenSpaces.map((x: any) => ({
-            name: x.name,
-            description: x.description,
-            fullDescription: x.fullDescription ?? null,
-            imageUrl: x.imageUrl ?? null,
-            website: x.website ?? null,
-            areaId,
-          })),
-        });
-      }
-
-      // Sports
-      if (sports.length) {
-        await tx.sport.createMany({
-          data: sports.map((x: any) => ({
-            name: x.name,
-            description: x.description,
-            fullDescription: x.fullDescription ?? null,
-            imageUrl: x.imageUrl ?? null,
-            website: x.website ?? null,
-            areaId,
-          })),
-        });
-      }
-
-      // Properties
-      if (properties.length) {
-        await tx.property.createMany({
-          data: properties.map((p: any) => ({
-            address: p.address,
-            price: p.price,
-            description: p.description,
-            fullDescription: p.fullDescription ?? null,
-            imageUrls: (p.imageUrls ?? []).slice(0, 5),
-            type: p.details.type,
-            builtYear: p.details.builtYear,
-            lotSizeSqFt: p.details.lotSizeSqFt,
-            parkingSpaces: p.details.parkingSpaces,
-            inUnitLaundry: p.details.inUnitLaundry,
-            district: p.details.district,
-            areaId,
-          })),
-        });
-      }
+      // Guardamos metadata para batch de amenities y properties
+      areasMeta.push({
+        areaId,
+        schools,
+        socialLife,
+        shopping,
+        greenSpaces,
+        sports,
+        properties,
+      });
     }
 
-    // 4) Resultado de la transacción
-    return recommendation;
+    return { recommendation, areasMeta };
   });
+
+  // 2) Amenities (fuera de la transacción, en paralelo)
+  await Promise.all(
+    areasMeta.map(async ({ areaId, schools, socialLife, shopping, greenSpaces, sports }) => {
+      const tasks: Promise<any>[] = [];
+
+      if (schools.length) {
+        tasks.push(prisma.school.createMany({ data: schools.map((s) => ({ ...s, areaId })) }));
+      }
+      if (socialLife.length) {
+        tasks.push(prisma.socialLife.createMany({ data: socialLife.map((x) => ({ ...x, areaId })) }));
+      }
+      if (shopping.length) {
+        tasks.push(prisma.shopping.createMany({ data: shopping.map((x) => ({ ...x, areaId })) }));
+      }
+      if (greenSpaces.length) {
+        tasks.push(prisma.greenSpace.createMany({ data: greenSpaces.map((x) => ({ ...x, areaId })) }));
+      }
+      if (sports.length) {
+        tasks.push(prisma.sport.createMany({ data: sports.map((x) => ({ ...x, areaId })) }));
+      }
+
+      if (tasks.length) {
+        await Promise.all(tasks);
+      }
+    })
+  );
+
+  // 3) Properties (batch único)
+  const allProperties = areasMeta.flatMap((meta) =>
+    meta.properties.map((p) => ({
+      address: p.address,
+      price: p.price,
+      description: p.description,
+      fullDescription: p.fullDescription ?? null,
+      imageUrls: (p.imageUrls ?? []).slice(0, 5),
+      type: p.details.type,
+      builtYear: p.details.builtYear,
+      lotSizeSqFt: p.details.lotSizeSqFt,
+      parkingSpaces: p.details.parkingSpaces,
+      inUnitLaundry: p.details.inUnitLaundry,
+      district: p.details.district,
+      areaId: meta.areaId,
+    }))
+  );
+
+  if (allProperties.length) {
+    await prisma.property.createMany({ data: allProperties });
+  }
+
+  return recommendation;
 }
