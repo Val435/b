@@ -25,7 +25,7 @@ STRICT CONSTRAINTS
 - Use only these types for property.details.type: ${RESIDENTIAL_TYPES.join(", ")}.
 
 TASK
-- For a single area, output: schools(3), socialLife(3), shopping(3), greenSpaces(3), sports(3), transportation(3), family(3), restaurants(3), pets(3), hobbies(3).
+- For a single area, output: schools(3), socialLife(3), shopping(3), greenSpaces(3), sports(3), transportation(3), family(3), restaurants(3), pets(3), hobbies(3). Todas las categorías deben incluir fullDescription y website.
 - para cada categoría devuelve también \`summary: [ ..., ..., ... ]\`.
 
 IMAGE RULES
@@ -39,4 +39,5 @@ IMAGE RULES
 
 TEXT RULES
 - Short descriptions; match schema exactly.
+- Cada item debe incluir \`fullDescription\` (≥20 caracteres) y \`website\` (URL válida o \`null\` si no existe).
 `.trim();

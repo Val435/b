@@ -160,38 +160,144 @@ export async function saveRecommendation(
         const tasks: Promise<any>[] = [];
 
         if (schools.length) {
-          tasks.push(prisma.school.createMany({ data: schools.map((s) => ({ ...s, areaId })) }));
+          tasks.push(
+            prisma.school.createMany({
+              data: schools.map((x) => ({
+                name: x.name,
+                description: x.description,
+                fullDescription: x.fullDescription ?? "",
+                imageUrl: x.imageUrl ?? null,
+                website: x.website ?? null,
+                areaId,
+              })),
+            })
+          );
         }
         if (socialLife.length) {
-          tasks.push(prisma.socialLife.createMany({ data: socialLife.map((x) => ({ ...x, areaId })) }));
+          tasks.push(
+            prisma.socialLife.createMany({
+              data: socialLife.map((x) => ({
+                name: x.name,
+                description: x.description,
+                fullDescription: x.fullDescription ?? "",
+                imageUrl: x.imageUrl ?? null,
+                website: x.website ?? null,
+                areaId,
+              })),
+            })
+          );
         }
         if (shopping.length) {
-          tasks.push(prisma.shopping.createMany({ data: shopping.map((x) => ({ ...x, areaId })) }));
+          tasks.push(
+            prisma.shopping.createMany({
+              data: shopping.map((x) => ({
+                name: x.name,
+                description: x.description,
+                fullDescription: x.fullDescription ?? "",
+                imageUrl: x.imageUrl ?? null,
+                website: x.website ?? null,
+                areaId,
+              })),
+            })
+          );
         }
         if (greenSpaces.length) {
-          tasks.push(prisma.greenSpace.createMany({ data: greenSpaces.map((x) => ({ ...x, areaId })) }));
+          tasks.push(
+            prisma.greenSpace.createMany({
+              data: greenSpaces.map((x) => ({
+                name: x.name,
+                description: x.description,
+                fullDescription: x.fullDescription ?? "",
+                imageUrl: x.imageUrl ?? null,
+                website: x.website ?? null,
+                areaId,
+              })),
+            })
+          );
         }
         if (sports.length) {
-          tasks.push(prisma.sport.createMany({ data: sports.map((x) => ({ ...x, areaId })) }));
+          tasks.push(
+            prisma.sport.createMany({
+              data: sports.map((x) => ({
+                name: x.name,
+                description: x.description,
+                fullDescription: x.fullDescription ?? "",
+                imageUrl: x.imageUrl ?? null,
+                website: x.website ?? null,
+                areaId,
+              })),
+            })
+          );
         }
         if (transportation.length) {
           tasks.push(
-            prisma.transportation.createMany({ data: transportation.map((x) => ({ ...x, areaId })) })
+            prisma.transportation.createMany({
+              data: transportation.map((x) => ({
+                name: x.name,
+                description: x.description,
+                fullDescription: x.fullDescription ?? "",
+                imageUrl: x.imageUrl ?? null,
+                website: x.website ?? null,
+                areaId,
+              })),
+            })
           );
         }
         if (family.length) {
-          tasks.push(prisma.family.createMany({ data: family.map((x) => ({ ...x, areaId })) }));
+          tasks.push(
+            prisma.family.createMany({
+              data: family.map((x) => ({
+                name: x.name,
+                description: x.description,
+                fullDescription: x.fullDescription ?? "",
+                imageUrl: x.imageUrl ?? null,
+                website: x.website ?? null,
+                areaId,
+              })),
+            })
+          );
         }
         if (restaurants.length) {
           tasks.push(
-            prisma.restaurant.createMany({ data: restaurants.map((x) => ({ ...x, areaId })) })
+            prisma.restaurant.createMany({
+              data: restaurants.map((x) => ({
+                name: x.name,
+                description: x.description,
+                fullDescription: x.fullDescription ?? "",
+                imageUrl: x.imageUrl ?? null,
+                website: x.website ?? null,
+                areaId,
+              })),
+            })
           );
         }
         if (pets.length) {
-          tasks.push(prisma.pet.createMany({ data: pets.map((x) => ({ ...x, areaId })) }));
+          tasks.push(
+            prisma.pet.createMany({
+              data: pets.map((x) => ({
+                name: x.name,
+                description: x.description,
+                fullDescription: x.fullDescription ?? "",
+                imageUrl: x.imageUrl ?? null,
+                website: x.website ?? null,
+                areaId,
+              })),
+            })
+          );
         }
         if (hobbies.length) {
-          tasks.push(prisma.hobby.createMany({ data: hobbies.map((x) => ({ ...x, areaId })) }));
+          tasks.push(
+            prisma.hobby.createMany({
+              data: hobbies.map((x) => ({
+                name: x.name,
+                description: x.description,
+                fullDescription: x.fullDescription ?? "",
+                imageUrl: x.imageUrl ?? null,
+                website: x.website ?? null,
+                areaId,
+              })),
+            })
+          );
         }
 
         if (tasks.length) {
