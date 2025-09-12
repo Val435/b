@@ -30,8 +30,7 @@ const placeSchema = z.object({
 
 const placesWithSummarySchema = z.object({
   items: z.array(placeSchema).min(3).max(10),
-  summary: z.string(),
-});
+ summary: z.array(z.string()).length(3),});
 
 // ===== Property =====
 export const propertySchema = z.object({
@@ -116,5 +115,6 @@ export const areaDetailsSchema = z.object({
   restaurants: placesWithSummarySchema,
   pets: placesWithSummarySchema,
   hobbies: placesWithSummarySchema,
-  properties: propertiesWithSummarySchema,
+  // Hacer opcional: el modelo a veces omite esta sección
+  properties: propertiesWithSummarySchema.optional(),
 });

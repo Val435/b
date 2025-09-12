@@ -163,16 +163,16 @@ model RecommendedArea {
   reason                String
   imageUrl              String?
   fullDescription       String?
-  schoolsSummary        String?
-  socialLifeSummary     String?
-  shoppingSummary       String?
-  greenSpacesSummary    String?
-  sportsSummary         String?
-  transportationSummary String?
-  familySummary         String?
-  restaurantsSummary    String?
-  petsSummary           String?
-  hobbiesSummary        String?
+  schoolsSummary        String[]   @default([])
+  socialLifeSummary     String[]   @default([])
+  shoppingSummary       String[]   @default([])
+  greenSpacesSummary    String[]   @default([])
+  sportsSummary         String[]   @default([])
+  transportationSummary String[]   @default([])
+  familySummary         String[]   @default([])
+  restaurantsSummary    String[]   @default([])
+  petsSummary           String[]   @default([])
+  hobbiesSummary        String[]   @default([])
 
   recommendation   Recommendation @relation(fields: [recommendationId], references: [id])
   recommendationId Int
