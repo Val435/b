@@ -157,12 +157,22 @@ model Recommendation {
 }
 
 model RecommendedArea {
-  id              Int     @id @default(autoincrement())
-  name            String
-  state           String
-  reason          String
-  imageUrl        String?
-  fullDescription String?
+  id                    Int     @id @default(autoincrement())
+  name                  String
+  state                 String
+  reason                String
+  imageUrl              String?
+  fullDescription       String?
+  schoolsSummary        String?
+  socialLifeSummary     String?
+  shoppingSummary       String?
+  greenSpacesSummary    String?
+  sportsSummary         String?
+  transportationSummary String?
+  familySummary         String?
+  restaurantsSummary    String?
+  petsSummary           String?
+  hobbiesSummary        String?
 
   recommendation   Recommendation @relation(fields: [recommendationId], references: [id])
   recommendationId Int
@@ -173,10 +183,15 @@ model RecommendedArea {
 
   schools School[]
 
-  socialLife  SocialLife[]
-  shopping    Shopping[]
-  greenSpaces GreenSpace[]
-  sports      Sport[]
+  socialLife     SocialLife[]
+  shopping       Shopping[]
+  greenSpaces    GreenSpace[]
+  sports         Sport[]
+  transportation Transportation[]
+  family         Family[]
+  restaurants    Restaurant[]
+  pets           Pet[]
+  hobbies        Hobby[]
 
   placesOfInterest String[]   @default([])
   lifestyleTags    String[]   @default([])
@@ -259,6 +274,61 @@ model GreenSpace {
 }
 
 model Sport {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String
+  fullDescription String?
+  imageUrl        String?
+  website         String? // ← nullable
+  area            RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId          Int
+}
+
+model Transportation {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String
+  fullDescription String?
+  imageUrl        String?
+  website         String? // ← nullable
+  area            RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId          Int
+}
+
+model Family {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String
+  fullDescription String?
+  imageUrl        String?
+  website         String? // ← nullable
+  area            RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId          Int
+}
+
+model Restaurant {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String
+  fullDescription String?
+  imageUrl        String?
+  website         String? // ← nullable
+  area            RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId          Int
+}
+
+model Pet {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String
+  fullDescription String?
+  imageUrl        String?
+  website         String? // ← nullable
+  area            RecommendedArea @relation(fields: [areaId], references: [id])
+  areaId          Int
+}
+
+model Hobby {
   id              Int             @id @default(autoincrement())
   name            String
   description     String

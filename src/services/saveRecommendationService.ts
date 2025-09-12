@@ -38,6 +38,11 @@ export async function saveRecommendation(
       shopping: any[];
       greenSpaces: any[];
       sports: any[];
+      transportation: any[];
+      family: any[];
+      restaurants: any[];
+      pets: any[];
+      hobbies: any[];
       properties: any[];
     }[] = [];
 
@@ -53,6 +58,21 @@ export async function saveRecommendation(
         shopping = [],
         greenSpaces = [],
         sports = [],
+        transportation = [],
+        family = [],
+        restaurants = [],
+        pets = [],
+        hobbies = [],
+        schoolsSummary,
+        socialLifeSummary,
+        shoppingSummary,
+        greenSpacesSummary,
+        sportsSummary,
+        transportationSummary,
+        familySummary,
+        restaurantsSummary,
+        petsSummary,
+        hobbiesSummary,
         properties = [],
         imageUrl = null,
         lifestyleTags = [],
@@ -71,6 +91,16 @@ export async function saveRecommendation(
           recommendationId: recommendation.id,
           lifestyleTags,
           placesOfInterest,
+          schoolsSummary: schoolsSummary ?? null,
+          socialLifeSummary: socialLifeSummary ?? null,
+          shoppingSummary: shoppingSummary ?? null,
+          greenSpacesSummary: greenSpacesSummary ?? null,
+          sportsSummary: sportsSummary ?? null,
+          transportationSummary: transportationSummary ?? null,
+          familySummary: familySummary ?? null,
+          restaurantsSummary: restaurantsSummary ?? null,
+          petsSummary: petsSummary ?? null,
+          hobbiesSummary: hobbiesSummary ?? null,
         },
       });
 
@@ -99,6 +129,11 @@ export async function saveRecommendation(
         shopping,
         greenSpaces,
         sports,
+        transportation,
+        family,
+        restaurants,
+        pets,
+        hobbies,
         properties,
       });
     }
@@ -108,29 +143,62 @@ export async function saveRecommendation(
 
   // 2) Amenities (fuera de la transacción, en paralelo)
   await Promise.all(
-    areasMeta.map(async ({ areaId, schools, socialLife, shopping, greenSpaces, sports }) => {
-      const tasks: Promise<any>[] = [];
+    areasMeta.map(
+      async ({
+        areaId,
+        schools,
+        socialLife,
+        shopping,
+        greenSpaces,
+        sports,
+        transportation,
+        family,
+        restaurants,
+        pets,
+        hobbies,
+      }) => {
+        const tasks: Promise<any>[] = [];
 
-      if (schools.length) {
-        tasks.push(prisma.school.createMany({ data: schools.map((s) => ({ ...s, areaId })) }));
-      }
-      if (socialLife.length) {
-        tasks.push(prisma.socialLife.createMany({ data: socialLife.map((x) => ({ ...x, areaId })) }));
-      }
-      if (shopping.length) {
-        tasks.push(prisma.shopping.createMany({ data: shopping.map((x) => ({ ...x, areaId })) }));
-      }
-      if (greenSpaces.length) {
-        tasks.push(prisma.greenSpace.createMany({ data: greenSpaces.map((x) => ({ ...x, areaId })) }));
-      }
-      if (sports.length) {
-        tasks.push(prisma.sport.createMany({ data: sports.map((x) => ({ ...x, areaId })) }));
-      }
+        if (schools.length) {
+          tasks.push(prisma.school.createMany({ data: schools.map((s) => ({ ...s, areaId })) }));
+        }
+        if (socialLife.length) {
+          tasks.push(prisma.socialLife.createMany({ data: socialLife.map((x) => ({ ...x, areaId })) }));
+        }
+        if (shopping.length) {
+          tasks.push(prisma.shopping.createMany({ data: shopping.map((x) => ({ ...x, areaId })) }));
+        }
+        if (greenSpaces.length) {
+          tasks.push(prisma.greenSpace.createMany({ data: greenSpaces.map((x) => ({ ...x, areaId })) }));
+        }
+        if (sports.length) {
+          tasks.push(prisma.sport.createMany({ data: sports.map((x) => ({ ...x, areaId })) }));
+        }
+        if (transportation.length) {
+          tasks.push(
+            prisma.transportation.createMany({ data: transportation.map((x) => ({ ...x, areaId })) })
+          );
+        }
+        if (family.length) {
+          tasks.push(prisma.family.createMany({ data: family.map((x) => ({ ...x, areaId })) }));
+        }
+        if (restaurants.length) {
+          tasks.push(
+            prisma.restaurant.createMany({ data: restaurants.map((x) => ({ ...x, areaId })) })
+          );
+        }
+        if (pets.length) {
+          tasks.push(prisma.pet.createMany({ data: pets.map((x) => ({ ...x, areaId })) }));
+        }
+        if (hobbies.length) {
+          tasks.push(prisma.hobby.createMany({ data: hobbies.map((x) => ({ ...x, areaId })) }));
+        }
 
-      if (tasks.length) {
-        await Promise.all(tasks);
+        if (tasks.length) {
+          await Promise.all(tasks);
+        }
       }
-    })
+    )
   );
 
   // 3) Properties (batch único)

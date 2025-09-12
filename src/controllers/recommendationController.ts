@@ -55,39 +55,83 @@ function mapRecommendationToResponse(reco: any) {
         website: school.website,
       })),
 
-      socialLife: area.socialLife.map((x: any) => ({
+      socialLife: (area.socialLife ?? []).map((x: any) => ({
         name: x.name,
         description: x.description,
         fullDescription: x.fullDescription ?? "",
         imageUrl: safeUrl(x.imageUrl),
         website: x.website,
       })),
-      shopping: area.shopping.map((x: any) => ({
+      socialLifeSummary: area.socialLifeSummary ?? [],
+      shopping: (area.shopping ?? []).map((x: any) => ({
         name: x.name,
         description: x.description,
         fullDescription: x.fullDescription ?? "",
         imageUrl: safeUrl(x.imageUrl),
         website: x.website,
       })),
-      greenSpaces: area.greenSpaces.map((x: any) => ({
+      shoppingSummary: area.shoppingSummary ?? [],
+      greenSpaces: (area.greenSpaces ?? []).map((x: any) => ({
         name: x.name,
         description: x.description,
         fullDescription: x.fullDescription ?? "",
         imageUrl: safeUrl(x.imageUrl),
         website: x.website,
       })),
-      sports: area.sports.map((x: any) => ({
+      greenSpacesSummary: area.greenSpacesSummary ?? [],
+      sports: (area.sports ?? []).map((x: any) => ({
         name: x.name,
         description: x.description,
         fullDescription: x.fullDescription ?? "",
         imageUrl: safeUrl(x.imageUrl),
         website: x.website,
       })),
+      sportsSummary: area.sportsSummary ?? [],
+      transportation: (area.transportation ?? []).map((x: any) => ({
+        name: x.name,
+        description: x.description,
+        fullDescription: x.fullDescription ?? "",
+        imageUrl: safeUrl(x.imageUrl),
+        website: x.website,
+      })),
+      transportationSummary: area.transportationSummary ?? [],
+      family: (area.family ?? []).map((x: any) => ({
+        name: x.name,
+        description: x.description,
+        fullDescription: x.fullDescription ?? "",
+        imageUrl: safeUrl(x.imageUrl),
+        website: x.website,
+      })),
+      familySummary: area.familySummary ?? [],
+      restaurants: (area.restaurants ?? []).map((x: any) => ({
+        name: x.name,
+        description: x.description,
+        fullDescription: x.fullDescription ?? "",
+        imageUrl: safeUrl(x.imageUrl),
+        website: x.website,
+      })),
+      restaurantsSummary: area.restaurantsSummary ?? [],
+      pets: (area.pets ?? []).map((x: any) => ({
+        name: x.name,
+        description: x.description,
+        fullDescription: x.fullDescription ?? "",
+        imageUrl: safeUrl(x.imageUrl),
+        website: x.website,
+      })),
+      petsSummary: area.petsSummary ?? [],
+      hobbies: (area.hobbies ?? []).map((x: any) => ({
+        name: x.name,
+        description: x.description,
+        fullDescription: x.fullDescription ?? "",
+        imageUrl: safeUrl(x.imageUrl),
+        website: x.website,
+      })),
+      hobbiesSummary: area.hobbiesSummary ?? [],
 
       placesOfInterest: area.placesOfInterest ?? [],
       lifestyleTags: area.lifestyleTags ?? [],
 
-      properties: area.properties.map((property: any) => ({
+      properties: (area.properties ?? []).map((property: any) => ({
         address: property.address,
         price: property.price,
         description: property.description,
@@ -212,7 +256,12 @@ export const fetchFullRecommendation: RequestHandler = async (req, res, next) =>
             shopping: true,
             greenSpaces: true,
             sports: true,
-          },
+            transportation: true,
+            family: true,
+            restaurants: true,
+            pets: true,
+            hobbies: true,
+          } as any,
         },
       },
     });
@@ -253,7 +302,12 @@ export const fetchByJourney: RequestHandler = async (req, res, next) => {
             shopping: true,
             greenSpaces: true,
             sports: true,
-          },
+            transportation: true,
+            family: true,
+            restaurants: true,
+            pets: true,
+            hobbies: true,
+          } as any,
         },
       },
     });

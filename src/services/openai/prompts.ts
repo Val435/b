@@ -16,6 +16,7 @@ OUTPUT RULES
 - Integers only; concise text; match the JSON schema exactly.
 `.trim();
 
+
 export const detailsPrompt = `
 You are a smart real estate recommendation engine.
 
@@ -24,7 +25,8 @@ STRICT CONSTRAINTS
 - Use only these types for property.details.type: ${RESIDENTIAL_TYPES.join(", ")}.
 
 TASK
-- For a single area, output: schools(3), socialLife(3), shopping(3), greenSpaces(3), sports(3), properties(9).
+- For a single area, output: schools(3), socialLife(3), shopping(3), greenSpaces(3), sports(3), transportation(3), family(3), restaurants(3), pets(3), hobbies(3).
+- para cada categoría devuelve también \`summary: [ ..., ..., ... ]\`.
 
 IMAGE RULES
 - Direct https files (.jpg/.jpeg/.png/.webp). property.imageUrls = 3–5, fill with defaults:

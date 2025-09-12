@@ -28,6 +28,11 @@ const placeSchema = z.object({
   website: urlString.nullable(),       // ← antes: z.string().url().nullable()
 });
 
+const placesWithSummarySchema = z.object({
+  items: z.array(placeSchema).min(3).max(10),
+  summary: z.string(),
+});
+
 // ===== Property =====
 export const propertySchema = z.object({
   address: z.string(),
@@ -45,6 +50,11 @@ export const propertySchema = z.object({
     inUnitLaundry: z.boolean(),
     district: z.string(),
   }),
+});
+
+const propertiesWithSummarySchema = z.object({
+  items: z.array(propertySchema).min(3).max(10),
+  summary: z.string(),
 });
 
 // ===== Core =====
@@ -96,10 +106,15 @@ export const coreSchema = z.object({
 // ===== Area Details =====
 export const areaDetailsSchema = z.object({
   name: z.string(),
-  schools: z.array(placeSchema).min(3).max(10),
-  socialLife: z.array(placeSchema).min(3).max(10),
-  shopping: z.array(placeSchema).min(3).max(10),
-  greenSpaces: z.array(placeSchema).min(3).max(10),
-  sports: z.array(placeSchema).min(3).max(10),
-  properties: z.array(propertySchema).min(3).max(10),
+  schools: placesWithSummarySchema,
+  socialLife: placesWithSummarySchema,
+  shopping: placesWithSummarySchema,
+  greenSpaces: placesWithSummarySchema,
+  sports: placesWithSummarySchema,
+  transportation: placesWithSummarySchema,
+  family: placesWithSummarySchema,
+  restaurants: placesWithSummarySchema,
+  pets: placesWithSummarySchema,
+  hobbies: placesWithSummarySchema,
+  properties: propertiesWithSummarySchema,
 });

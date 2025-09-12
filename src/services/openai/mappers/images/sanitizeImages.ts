@@ -11,6 +11,11 @@ const TYPE_HINTS: Record<ImageKind, string | undefined> = {
   sports: "stadium",
   property: "premise", // sesgo a vivienda
   area: undefined,
+  transport: "transit_station",
+  family: undefined,
+  restaurant: "restaurant",
+  pet: "pet_store",
+  hobby: undefined,
 };
 
 export async function sanitizeImages(parsed: any) {
@@ -37,12 +42,13 @@ export async function sanitizeImages(parsed: any) {
   const usedAreaImages = new Set<string>();
 
   const handleList = async (
-    items: any[] | undefined,
+    category: any[] | { items?: any[] } | undefined,
     type: ImageKind,
     getName: (x: any) => string,
     areaName: string,
     areaState: string
   ) => {
+    const items = Array.isArray(category) ? category : category?.items;
     if (!Array.isArray(items) || !items.length) return;
 
     const locationHint = [areaName, areaState].filter(Boolean).join(", ");
@@ -140,14 +146,19 @@ export async function sanitizeImages(parsed: any) {
       }
 
       // Listas por tipo
-      await handleList(area?.schools, "school", (s) => s?.name ?? "", aName, aState);
-      await handleList(area?.socialLife, "social", (s) => s?.name ?? "", aName, aState);
-      await handleList(area?.shopping, "shopping", (s) => s?.name ?? "", aName, aState);
-      await handleList(area?.greenSpaces, "greens", (s) => s?.name ?? "", aName, aState);
-      await handleList(area?.sports, "sports", (s) => s?.name ?? "", aName, aState);
+      await handleList(area?.schools?.items, "school", (s) => s?.name ?? "", aName, aState);
+      await handleList(area?.socialLife?.items, "social", (s) => s?.name ?? "", aName, aState);
+      await handleList(area?.shopping?.items, "shopping", (s) => s?.name ?? "", aName, aState);
+      await handleList(area?.greenSpaces?.items, "greens", (s) => s?.name ?? "", aName, aState);
+      await handleList(area?.sports?.items, "sports", (s) => s?.name ?? "", aName, aState);
+      await handleList(area?.transportation?.items, "transport", (t) => t?.name ?? "", aName, aState);
+      await handleList(area?.family?.items, "family", (f) => f?.name ?? "", aName, aState);
+      await handleList(area?.restaurants?.items, "restaurant", (r) => r?.name ?? "", aName, aState);
+      await handleList(area?.pets?.items, "pet", (p) => p?.name ?? "", aName, aState);
+      await handleList(area?.hobbies?.items, "hobby", (h) => h?.name ?? "", aName, aState);
 
       // Propiedades: asegurar 3..5 imágenes
-      await handleList(area?.properties, "property", (p) => p?.address ?? aName, aName, aState);
+      await handleList(area?.properties?.items, "property", (p) => p?.address ?? aName, aName, aState);
     })
   );
 
