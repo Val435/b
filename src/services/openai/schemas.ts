@@ -28,9 +28,11 @@ const placeSchema = z.object({
   website: urlString.nullable(),       // ← antes: z.string().url().nullable()
 });
 
-const placesWithSummarySchema = z.object({
+// Categoría con resumen breve en 3 bullets
+const categoryWithSummarySchema = z.object({
   items: z.array(placeSchema).min(3).max(10),
- summary: z.array(z.string()).length(3),});
+  summary: z.array(z.string()).length(3),
+});
 
 // ===== Property =====
 export const propertySchema = z.object({
@@ -105,16 +107,16 @@ export const coreSchema = z.object({
 // ===== Area Details =====
 export const areaDetailsSchema = z.object({
   name: z.string(),
-  schools: placesWithSummarySchema,
-  socialLife: placesWithSummarySchema,
-  shopping: placesWithSummarySchema,
-  greenSpaces: placesWithSummarySchema,
-  sports: placesWithSummarySchema,
-  transportation: placesWithSummarySchema,
-  family: placesWithSummarySchema,
-  restaurants: placesWithSummarySchema,
-  pets: placesWithSummarySchema,
-  hobbies: placesWithSummarySchema,
+  schools: categoryWithSummarySchema,
+  socialLife: categoryWithSummarySchema,
+  shopping: categoryWithSummarySchema,
+  greenSpaces: categoryWithSummarySchema,
+  sports: categoryWithSummarySchema,
+  transportation: categoryWithSummarySchema,
+  family: categoryWithSummarySchema,
+  restaurants: categoryWithSummarySchema,
+  pets: categoryWithSummarySchema,
+  hobbies: categoryWithSummarySchema,
   // Hacer opcional: el modelo a veces omite esta sección
   properties: propertiesWithSummarySchema.optional(),
 });

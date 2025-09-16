@@ -2,9 +2,7 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const API_KEY =
-  process.env.GOOGLE_MAPS_KEY ||
-  process.env.GOOGLE_PLACES_API_KEY ||
-  "";
+  process.env.GOOGLE_MAPS_KEY || process.env.GOOGLE_PLACES_API_KEY || "";
 
 if (!API_KEY) {
   console.warn(" Missing GOOGLE_MAPS_KEY / GOOGLE_PLACES_API_KEY in .env");
@@ -41,7 +39,10 @@ function getCachedPhoto(query: string) {
 }
 
 function setCachedPhoto(query: string, uri: string) {
-  queryCache.set(query, { photoUri: uri, expiresAt: Date.now() + CACHE_TTL_MS });
+  queryCache.set(query, {
+    photoUri: uri,
+    expiresAt: Date.now() + CACHE_TTL_MS,
+  });
 }
 
 async function safeText(res: Response) {
@@ -52,41 +53,58 @@ async function safeText(res: Response) {
   }
 }
 
-function dumpPlace(p: any, i: number) {
-  const types = Array.isArray(p.types) ? p.types.slice(0, 5).join(",") : "";
-  const photosLen = Array.isArray(p.photos) ? p.photos.length : 0;
-  const name = p.displayName?.text ?? p.id ?? "<no-name>";
-  const status = p.businessStatus ?? "<no-status>";
-  log(
-    `    #${i + 1} ${name}\n` +
-      `       id=${p.id}\n` +
-      `       status=${status} types=[${types}]\n` +
-      `       photos=${photosLen}`
-  );
-}
-
 function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-// --- Filtros anti-comercial y preferencia residencial ---
 const BAD_TYPES = new Set([
-  "accounting","bank","insurance_agency","lawyer","real_estate_agency",
-  "post_office","car_dealer","car_rental","car_repair","car_wash","gas_station",
-  "restaurant","cafe","bar","night_club","shopping_mall","store","gym",
-  "church","mosque","synagogue","school","university"
+  "accounting",
+  "bank",
+  "insurance_agency",
+  "lawyer",
+  "real_estate_agency",
+  "post_office",
+  "car_dealer",
+  "car_rental",
+  "car_repair",
+  "car_wash",
+  "gas_station",
+  "restaurant",
+  "cafe",
+  "bar",
+  "night_club",
+  "shopping_mall",
+  "store",
+  "gym",
+  "church",
+  "mosque",
+  "synagogue",
+  "school",
+  "university",
 ]);
 
 const COMMERCIAL_HINTS =
   /(commercial|retail|office|warehouse|industrial|chamber of commerce|bookkeeping|business|mall|plaza|center|company|inc\b|llc\b|suite\s*#?\d+|unit\s*\d+)/i;
 
-const looksCommercial = (p: any) =>
+const looksCommercial = (p: {
+  displayName?: { text?: string };
+  types?: string[];
+}) =>
   COMMERCIAL_HINTS.test(p.displayName?.text || "") ||
   (Array.isArray(p.types) && p.types.some((t: string) => BAD_TYPES.has(t)));
 
-const residentialish = (p: any) =>
-  Array.isArray(p.types) && p.types.some((t: string) =>
-    ["premise","street_address","route","locality","sublocality","neighborhood","plus_code"].includes(t)
+const residentialish = (p: { types?: string[] }) =>
+  Array.isArray(p.types) &&
+  p.types.some((t: string) =>
+    [
+      "premise",
+      "street_address",
+      "route",
+      "locality",
+      "sublocality",
+      "neighborhood",
+      "plus_code",
+    ].includes(t)
   );
 
 export async function fetchVerifiedImage(
@@ -113,11 +131,11 @@ export async function fetchVerifiedImage(
 
     if (!API_KEY) return null;
 
-    const maxWidthPx  = opts?.maxWidthPx  ?? DEFAULT_MAX_WIDTH_PX;
+    const maxWidthPx = opts?.maxWidthPx ?? DEFAULT_MAX_WIDTH_PX;
     const maxHeightPx = opts?.maxHeightPx ?? DEFAULT_MAX_HEIGHT_PX;
     const languageCode = opts?.languageCode ?? "en";
-    const regionCode   = opts?.regionCode   ?? "US";
-    const photoIndex   = opts?.photoIndex ?? 0;
+    const regionCode = opts?.regionCode ?? "US";
+    const photoIndex = opts?.photoIndex ?? 0;
 
     const seen = new Set<string>();
     const queries: string[] = [];
@@ -133,15 +151,16 @@ export async function fetchVerifiedImage(
       .replace(/[’'&]/g, " ")
       .replace(/\s+/g, " ")
       .trim();
-    const normQuery = cleanedRaw.toLowerCase();
 
     add([rawQuery, opts?.locationHint].filter(Boolean).join(" "));
     add(rawQuery);
 
     if (opts?.includedType) {
-      add([rawQuery, opts.includedType, opts.locationHint]
-        .filter(Boolean)
-        .join(" "));
+      add(
+        [rawQuery, opts.includedType, opts.locationHint]
+          .filter(Boolean)
+          .join(" ")
+      );
       add([rawQuery, opts.includedType].filter(Boolean).join(" "));
     }
 
@@ -149,21 +168,27 @@ export async function fetchVerifiedImage(
       add([cleanedRaw, opts?.locationHint].filter(Boolean).join(" "));
     }
 
-    // 👇 sesgo a residencial (quitamos “business/building”)
     add(`${rawQuery} house`);
     add(`${rawQuery} home`);
     add(`${rawQuery} residential`);
 
-    const baseHeaders: Record<string, string> = {
+    const headersSearch: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": API_KEY,
-      "X-Goog-FieldMask":
-        "places.id,places.displayName,places.photos,places.types,places.businessStatus,places.location,places.rating",
+      "X-Goog-FieldMask": "places.id",
+    };
+
+    const headersDetails: Record<string, string> = {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": API_KEY,
+      "X-Goog-FieldMask": "id,photos,types,location",
     };
 
     log(" PLACES_DEBUG=ON  key=", maskKey(API_KEY));
     log(" queries to try:", queries);
+
     let photoUrl: string | null = null;
+
     for (const textQuery of queries) {
       const body: any = {
         textQuery,
@@ -175,7 +200,7 @@ export async function fetchVerifiedImage(
       if (typeof opts?.lat === "number" && typeof opts?.lng === "number") {
         body.locationBias = {
           rectangle: {
-            low:  { latitude: opts.lat - 0.1, longitude: opts.lng - 0.1 },
+            low: { latitude: opts.lat - 0.1, longitude: opts.lng - 0.1 },
             high: { latitude: opts.lat + 0.1, longitude: opts.lng + 0.1 },
           },
         };
@@ -186,88 +211,79 @@ export async function fetchVerifiedImage(
       }
 
       log("POST searchText payload:", JSON.stringify(body));
-      const searchRes = await fetch("https://places.googleapis.com/v1/places:searchText", {
-        method: "POST",
-        headers: baseHeaders,
-        body: JSON.stringify(body),
-      });
+      const searchRes = await fetch(
+        "https://places.googleapis.com/v1/places:searchText",
+        {
+          method: "POST",
+          headers: headersSearch,
+          body: JSON.stringify(body),
+        }
+      );
 
       if (!searchRes.ok) {
-        const err = await safeText(searchRes);
+        const err = await safeText(searchRes as unknown as Response);
         console.warn("Text Search error:", searchRes.status, err);
         continue;
       }
       log(" searchText status:", searchRes.status);
 
       const search = (await searchRes.json()) as {
-        places?: Array<{
-          id: string;
-          displayName?: { text?: string };
-          photos?: Array<{ name: string }>;
-          businessStatus?: string;
-          types?: string[];
-        }>;
+        places?: Array<{ id: string }>;
       };
 
       const placesLen = search.places?.length || 0;
       console.log(`[Places] query="${textQuery}" -> places: ${placesLen}`);
       if (!placesLen) continue;
 
-      search.places!.slice(0, 5).forEach((p, i) => dumpPlace(p, i));
-      const withPhotos = search.places!.filter((p) => p.photos?.length);
-      log(`    candidates with photos: ${withPhotos.length}`);
+      // --- Traer detalles por ID y elegir una foto válida ---
+      let chosenPhotoName: string | undefined;
 
-      // --- filtro y ranking residencial ---
-      const ranked = (search.places || [])
-        .filter((p) => p.photos?.length)
-        .filter((p) => !looksCommercial(p))
-        .sort((a, b) => Number(residentialish(b)) - Number(residentialish(a)));
+      for (const cand of (search.places || []).slice(0, 5)) {
+        try {
+          const detRes = await fetch(
+            `https://places.googleapis.com/v1/places/${cand.id}`,
+            { headers: headersDetails }
+          );
 
-      if (!ranked.length) {
-        console.log(`All candidates looked commercial for "${textQuery}"`);
+          if (!detRes.ok) {
+            log(
+              "details error",
+              detRes.status,
+              await safeText(detRes as unknown as Response)
+            );
+            continue;
+          }
+
+          const det = (await detRes.json()) as {
+            id: string;
+            types?: string[];
+            photos?: Array<{ name: string }>;
+            // location?: { latitude:number; longitude:number }
+          };
+
+          // filtros con types (Essentials en Details)
+          if (!det.photos?.length) continue;
+          if (looksCommercial({ types: det.types, displayName: { text: "" } }))
+            continue;
+          if (!residentialish({ types: det.types })) continue;
+
+          const ph = det.photos[photoIndex] ?? det.photos[0];
+          if (ph?.name) {
+            chosenPhotoName = ph.name;
+            break;
+          }
+        } catch (e) {
+          log("details fetch err", e);
+        }
+      }
+
+      if (!chosenPhotoName) {
+        console.log(`No usable photo after Details for "${textQuery}"`);
         continue;
       }
 
-      const place =
-        ranked.find((p) => p.displayName?.text?.toLowerCase().includes(normQuery)) ||
-        ranked.find((p) => p.businessStatus === "OPERATIONAL") ||
-        ranked[0];
-
-      if (!place?.photos?.length) {
-        const top = ranked?.[0];
-        const types = top?.types?.slice(0, 5).join(",") ?? "";
-        console.log(
-          `Ranked places but no photos (types=[${types}] status=${top?.businessStatus})`
-        );
-        continue;
-      }
-
-      log(
-        "chosen place:",
-        place.displayName?.text,
-        "status=",
-        place.businessStatus,
-        "types=",
-        place.types?.slice(0, 5),
-        "photos=",
-        place.photos?.length
-      );
-
-      const photo = place.photos[photoIndex];
-      if (!photo) {
-        console.log(
-          `[Places] place has only ${place.photos.length} photos, missing index ${photoIndex}`
-        );
-        continue;
-      }
-      const photoName = photo.name;
-      console.log(
-        "[Places] photoName:",
-        photoName,
-        "for",
-        place.displayName?.text,
-        `[#${photoIndex}]`
-      );
+      const photoName = chosenPhotoName;
+      console.log("[Places] photoName:", photoName, `[#${photoIndex}]`);
 
       const mediaUrl =
         `https://places.googleapis.com/v1/${photoName}/media` +
@@ -282,7 +298,7 @@ export async function fetchVerifiedImage(
       log("media status:", photoRes.status, "ct:", contentType);
 
       if (!photoRes.ok) {
-        const err = await safeText(photoRes);
+        const err = await safeText(photoRes as unknown as Response);
         console.warn("Photos media error:", photoRes.status, err);
         continue;
       }
@@ -306,12 +322,15 @@ export async function fetchVerifiedImage(
           console.log("Foto (Location):", photoUrl);
         }
       }
+
       if (photoUrl) break;
 
       await delay(200);
     }
 
     if (photoUrl) {
+      // Guarda en cache (opcional)
+      setCachedPhoto(rawQuery, photoUrl);
       return photoUrl;
     }
 

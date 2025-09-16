@@ -54,6 +54,7 @@ function mapRecommendationToResponse(reco: any) {
         imageUrl: safeUrl(school.imageUrl),
         website: school.website,
       })),
+      schoolsSummary: area.schoolsSummary ?? [],
 
       socialLife: (area.socialLife ?? []).map((x: any) => ({
         name: x.name,

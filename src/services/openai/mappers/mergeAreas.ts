@@ -4,8 +4,14 @@ export function mergeAreas(core: any, detailsList: any[]) {
   return core.recommendedAreas.map((a: any) => {
     const d = detailsList.find((x) => x.name === a.name) || {};
 
+    const area: any = { ...a };
+
+    // Schools se maneja de forma explícita
+    const schoolDetail = (d as any).schools || {};
+    area.schools = schoolDetail.items ?? [];
+    area.schoolsSummary = schoolDetail.summary ?? [];
+
     const categories = [
-      "schools",
       "socialLife",
       "shopping",
       "greenSpaces",
@@ -18,12 +24,10 @@ export function mergeAreas(core: any, detailsList: any[]) {
       "properties",
     ];
 
-    const area: any = { ...a };
-
     for (const cat of categories) {
       const detail = (d as any)[cat] || {};
       area[cat] = detail.items ?? [];
-      area[`${cat}Summary`] = detail.summary ?? "";
+      area[`${cat}Summary`] = detail.summary ?? [];
     }
 
     enforceResidential(area);

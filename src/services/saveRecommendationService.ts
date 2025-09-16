@@ -80,6 +80,9 @@ export async function saveRecommendation(
       } = area;
 
       const { raceEthnicity, incomeLevels, crimeData } = demographics;
+      const schoolsItems = Array.isArray(schools)
+        ? schools
+        : (schools as any)?.items ?? [];
 
       const savedArea = await tx.recommendedArea.create({
         data: {
@@ -124,7 +127,7 @@ export async function saveRecommendation(
       // Guardamos metadata para batch de amenities y properties
       areasMeta.push({
         areaId,
-        schools,
+        schools: schoolsItems,
         socialLife,
         shopping,
         greenSpaces,
