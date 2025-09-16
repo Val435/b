@@ -2,7 +2,9 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const API_KEY =
-  process.env.GOOGLE_MAPS_KEY || process.env.GOOGLE_PLACES_API_KEY || "";
+  process.env.GOOGLE_MAPS_KEY ||
+  process.env.GOOGLE_PLACES_API_KEY ||
+  "";
 
 if (!API_KEY) {
   console.warn(" Missing GOOGLE_MAPS_KEY / GOOGLE_PLACES_API_KEY in .env");
@@ -39,10 +41,7 @@ function getCachedPhoto(query: string) {
 }
 
 function setCachedPhoto(query: string, uri: string) {
-  queryCache.set(query, {
-    photoUri: uri,
-    expiresAt: Date.now() + CACHE_TTL_MS,
-  });
+  queryCache.set(query, { photoUri: uri, expiresAt: Date.now() + CACHE_TTL_MS });
 }
 
 async function safeText(res: Response) {
@@ -57,54 +56,24 @@ function delay(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+
 const BAD_TYPES = new Set([
-  "accounting",
-  "bank",
-  "insurance_agency",
-  "lawyer",
-  "real_estate_agency",
-  "post_office",
-  "car_dealer",
-  "car_rental",
-  "car_repair",
-  "car_wash",
-  "gas_station",
-  "restaurant",
-  "cafe",
-  "bar",
-  "night_club",
-  "shopping_mall",
-  "store",
-  "gym",
-  "church",
-  "mosque",
-  "synagogue",
-  "school",
-  "university",
+  "accounting","bank","insurance_agency","lawyer","real_estate_agency",
+  "post_office","car_dealer","car_rental","car_repair","car_wash","gas_station",
+  "restaurant","cafe","bar","night_club","shopping_mall","store","gym",
+  "church","mosque","synagogue","school","university"
 ]);
 
 const COMMERCIAL_HINTS =
   /(commercial|retail|office|warehouse|industrial|chamber of commerce|bookkeeping|business|mall|plaza|center|company|inc\b|llc\b|suite\s*#?\d+|unit\s*\d+)/i;
 
-const looksCommercial = (p: {
-  displayName?: { text?: string };
-  types?: string[];
-}) =>
+const looksCommercial = (p: { displayName?: { text?: string }, types?: string[] }) =>
   COMMERCIAL_HINTS.test(p.displayName?.text || "") ||
   (Array.isArray(p.types) && p.types.some((t: string) => BAD_TYPES.has(t)));
 
 const residentialish = (p: { types?: string[] }) =>
-  Array.isArray(p.types) &&
-  p.types.some((t: string) =>
-    [
-      "premise",
-      "street_address",
-      "route",
-      "locality",
-      "sublocality",
-      "neighborhood",
-      "plus_code",
-    ].includes(t)
+  Array.isArray(p.types) && p.types.some((t: string) =>
+    ["premise","street_address","route","locality","sublocality","neighborhood","plus_code"].includes(t)
   );
 
 export async function fetchVerifiedImage(
@@ -131,11 +100,11 @@ export async function fetchVerifiedImage(
 
     if (!API_KEY) return null;
 
-    const maxWidthPx = opts?.maxWidthPx ?? DEFAULT_MAX_WIDTH_PX;
+    const maxWidthPx  = opts?.maxWidthPx  ?? DEFAULT_MAX_WIDTH_PX;
     const maxHeightPx = opts?.maxHeightPx ?? DEFAULT_MAX_HEIGHT_PX;
     const languageCode = opts?.languageCode ?? "en";
-    const regionCode = opts?.regionCode ?? "US";
-    const photoIndex = opts?.photoIndex ?? 0;
+    const regionCode   = opts?.regionCode   ?? "US";
+    const photoIndex   = opts?.photoIndex ?? 0;
 
     const seen = new Set<string>();
     const queries: string[] = [];
@@ -156,11 +125,9 @@ export async function fetchVerifiedImage(
     add(rawQuery);
 
     if (opts?.includedType) {
-      add(
-        [rawQuery, opts.includedType, opts.locationHint]
-          .filter(Boolean)
-          .join(" ")
-      );
+      add([rawQuery, opts.includedType, opts.locationHint]
+        .filter(Boolean)
+        .join(" "));
       add([rawQuery, opts.includedType].filter(Boolean).join(" "));
     }
 
@@ -168,16 +135,19 @@ export async function fetchVerifiedImage(
       add([cleanedRaw, opts?.locationHint].filter(Boolean).join(" "));
     }
 
+    
     add(`${rawQuery} house`);
     add(`${rawQuery} home`);
     add(`${rawQuery} residential`);
 
+   
     const headersSearch: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": API_KEY,
       "X-Goog-FieldMask": "places.id",
     };
 
+   
     const headersDetails: Record<string, string> = {
       "Content-Type": "application/json",
       "X-Goog-Api-Key": API_KEY,
@@ -200,7 +170,7 @@ export async function fetchVerifiedImage(
       if (typeof opts?.lat === "number" && typeof opts?.lng === "number") {
         body.locationBias = {
           rectangle: {
-            low: { latitude: opts.lat - 0.1, longitude: opts.lng - 0.1 },
+            low:  { latitude: opts.lat - 0.1, longitude: opts.lng - 0.1 },
             high: { latitude: opts.lat + 0.1, longitude: opts.lng + 0.1 },
           },
         };
@@ -211,14 +181,11 @@ export async function fetchVerifiedImage(
       }
 
       log("POST searchText payload:", JSON.stringify(body));
-      const searchRes = await fetch(
-        "https://places.googleapis.com/v1/places:searchText",
-        {
-          method: "POST",
-          headers: headersSearch,
-          body: JSON.stringify(body),
-        }
-      );
+      const searchRes = await fetch("https://places.googleapis.com/v1/places:searchText", {
+        method: "POST",
+        headers: headersSearch,
+        body: JSON.stringify(body),
+      });
 
       if (!searchRes.ok) {
         const err = await safeText(searchRes as unknown as Response);
@@ -246,15 +213,11 @@ export async function fetchVerifiedImage(
           );
 
           if (!detRes.ok) {
-            log(
-              "details error",
-              detRes.status,
-              await safeText(detRes as unknown as Response)
-            );
+            log("details error", detRes.status, await safeText(detRes as unknown as Response));
             continue;
           }
 
-          const det = (await detRes.json()) as {
+          const det = await detRes.json() as {
             id: string;
             types?: string[];
             photos?: Array<{ name: string }>;
@@ -263,8 +226,7 @@ export async function fetchVerifiedImage(
 
           // filtros con types (Essentials en Details)
           if (!det.photos?.length) continue;
-          if (looksCommercial({ types: det.types, displayName: { text: "" } }))
-            continue;
+          if (looksCommercial({ types: det.types, displayName: { text: "" } })) continue;
           if (!residentialish({ types: det.types })) continue;
 
           const ph = det.photos[photoIndex] ?? det.photos[0];
