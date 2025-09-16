@@ -157,22 +157,22 @@ model Recommendation {
 }
 
 model RecommendedArea {
-  id                    Int     @id @default(autoincrement())
+  id                    Int      @id @default(autoincrement())
   name                  String
   state                 String
   reason                String
   imageUrl              String?
   fullDescription       String?
-  schoolsSummary        String[]   @default([])
-  socialLifeSummary     String[]   @default([])
-  shoppingSummary       String[]   @default([])
-  greenSpacesSummary    String[]   @default([])
-  sportsSummary         String[]   @default([])
-  transportationSummary String[]   @default([])
-  familySummary         String[]   @default([])
-  restaurantsSummary    String[]   @default([])
-  petsSummary           String[]   @default([])
-  hobbiesSummary        String[]   @default([])
+  schoolsSummary        String[] @default([])
+  socialLifeSummary     String[] @default([])
+  shoppingSummary       String[] @default([])
+  greenSpacesSummary    String[] @default([])
+  sportsSummary         String[] @default([])
+  transportationSummary String[] @default([])
+  familySummary         String[] @default([])
+  restaurantsSummary    String[] @default([])
+  petsSummary           String[] @default([])
+  hobbiesSummary        String[] @default([])
 
   recommendation   Recommendation @relation(fields: [recommendationId], references: [id])
   recommendationId Int
