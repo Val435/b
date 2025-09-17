@@ -7,6 +7,10 @@ import { mergeAreas } from "./openai/mappers/mergeAreas";
 import { sanitizeImages } from "./openai/mappers/images/sanitizeImages";
 import { z } from "zod";
 
+// 👇 NUEVO
+import JSON5 from "json5";
+import { jsonrepair } from "jsonrepair";
+
 dotenv.config();
 
 // ===== Tipos inferidos de Zod =====
@@ -23,41 +27,85 @@ function safeJSONStringify(obj: any) {
     .replace(/\u2029/g, "\\u2029");
 }
 
-// Fallback muy simple para “arreglar” JSON casi-válido del modelo (sin libs externas)
-function repairJsonLoosely(text: string): string {
-  let s = String(text).trim();
+// 👇 NUEVO: utilidades de saneo/depuración para salidas del modelo
+function logWindowAround(raw: string, pos: number, span = 160) {
+  const start = Math.max(0, pos - span);
+  const end = Math.min(raw.length, pos + span);
+  // eslint-disable-next-line no-console
+  console.error("✂️ JSON window (" + start + ".." + end + "):\n" + raw.slice(start, end));
+}
 
-  // 1) quitar code fences ```json ... ```
-  s = s.replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
+function stripCodeFences(s: string) {
+  // ```json ... ```  o  ``` ... ```
+  const fence = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+  const m = s.match(fence);
+  return m ? m[1] : s;
+}
 
-  // 2) recortar al primer '{' y último '}' (evita prólogos/epílogos)
-  const first = s.indexOf("{");
-  const last = s.lastIndexOf("}");
-  if (first !== -1 && last !== -1 && last > first) {
-    s = s.slice(first, last + 1);
-  }
+function extractLikelyJson(s: string) {
+  // intenta quedarte solo con el bloque JSON principal
+  const firstBrace = s.indexOf("{");
+  const firstBracket = s.indexOf("[");
+  const first = [firstBrace, firstBracket].filter(i => i >= 0).sort((a,b)=>a-b)[0] ?? -1;
+  if (first < 0) return s;
 
-  // 3) quitar comas colgantes antes de '}' o ']'
-  //    ejemplo:  { "a": 1, }  -> { "a": 1 }
-  //              [1,2,]       -> [1,2]
-  s = s.replace(/,\s*([}\]])/g, "$1");
-
-  // 4) normalizar algunos caracteres invisibles (U+2028/U+2029 rompen JSON)
-  s = s.replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
-
+  const lastBrace = s.lastIndexOf("}");
+  const lastBracket = s.lastIndexOf("]");
+  const last = Math.max(lastBrace, lastBracket);
+  if (last > first) return s.slice(first, last + 1);
   return s;
 }
 
-// Extrae el texto crudo de Responses API .create()
+// Fallback robusto para “arreglar” JSON casi-válido del modelo
+function sanitizeAlmostJson(text: string): string {
+  let s = String(text).trim();
+
+  // 1) quitar fences y quedarnos con el bloque JSON más probable
+  const fence = /```(?:json)?\s*([\s\S]*?)\s*```/i;
+  const m = s.match(fence);
+  if (m) s = m[1];
+  // recorta desde el primer { o [
+  const first = (() => {
+    const a = s.indexOf("{");
+    const b = s.indexOf("[");
+    if (a === -1) return b;
+    if (b === -1) return a;
+    return Math.min(a, b);
+  })();
+  const last = Math.max(s.lastIndexOf("}"), s.lastIndexOf("]"));
+  if (first >= 0 && last > first) s = s.slice(first, last + 1);
+
+  
+  s = s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+
+  s = s.replace(/,(\s*[\]}])/g, "$1");
+ 
+  s = s.replace(/}\s*{/g, "},{");
+
+  s = s.replace(/}\s*},/g, "},");
+
+  s = s.replace(/}\s*}\s*{/g, "},{");
+
+  s = s.replace(/(\]|\}|")\s*,?\s*}\s*(?=\s*[,}\]])/g, (_m, g1) => `${g1}]`);
+
+  s = s.replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+  s = s.replace(/\r\n?/g, "\n");
+
+  return s.trim();
+}
+
+
+
 function extractResponseText(raw: any): string {
   return (
     raw?.output_text ??
     raw?.output?.[0]?.content?.[0]?.text ??
+    raw?.choices?.[0]?.message?.content ?? 
     ""
   );
 }
 
-// Limitador de concurrencia (pool de workers)
+
 async function mapWithConcurrencyLimit<T, R>(
   items: T[],
   limit: number,
@@ -79,24 +127,59 @@ async function mapWithConcurrencyLimit<T, R>(
   return results;
 }
 
-// Fallback genérico: intenta .parse(); si falla, pide texto crudo (.create), repara y valida con Zod
+
 async function parseWithSimpleFallback<T>(
   reqArgs: Parameters<ReturnType<typeof getOpenAI>["responses"]["parse"]>[0],
   schema: z.ZodTypeAny
 ): Promise<T> {
   const openai = getOpenAI();
+
+ 
   try {
     const r = await openai.responses.parse(reqArgs);
     const parsed = (r.output_parsed ?? null) as T | null;
     if (!parsed) throw new Error("Parsed output is null");
     return parsed;
-  } catch {
-    // pedir respuesta cruda y reparar
+  } catch (e0: any) {
+   
     const raw = await openai.responses.create(reqArgs);
-    const text = extractResponseText(raw);
-    const repaired = repairJsonLoosely(text);
-    const obj = JSON.parse(repaired);
-    return schema.parse(obj) as T;
+    let text = extractResponseText(raw);
+
+    try {
+      const obj = JSON.parse(text);
+      return schema.parse(obj) as T;
+    } catch (e1: any) {
+      const m = /position (\d+)/i.exec(String(e1));
+      if (m) logWindowAround(text, parseInt(m[1], 10));
+    }
+
+    const cleaned = sanitizeAlmostJson(text);
+    try {
+      const obj = JSON.parse(cleaned);
+      return schema.parse(obj) as T;
+    } catch (e2: any) {
+      const m = /position (\d+)/i.exec(String(e2));
+      if (m) logWindowAround(cleaned, parseInt(m[1], 10));
+    }
+
+    // c) JSON5 (tolerante a comas colgantes, etc.)
+    try {
+      const obj = JSON5.parse(cleaned);
+      return schema.parse(obj) as T;
+    } catch {
+      // sigue
+    }
+
+    // d) Reparación agresiva
+    try {
+      const repaired = jsonrepair(cleaned);
+      const obj = JSON.parse(repaired);
+      return schema.parse(obj) as T;
+    } catch (eFinal) {
+      // eslint-disable-next-line no-console
+      console.error("❌ JSON irreparable. Head:\n", String(text).slice(0, 400));
+      throw eFinal;
+    }
   }
 }
 

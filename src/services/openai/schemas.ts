@@ -24,11 +24,11 @@ const placeSchema = z.object({
   name: z.string(),
   description: z.string(),
   fullDescription: nonEmptyText,
-  imageUrl: imageUrlString.nullable(), // ← antes: z.string().url().nullable()
-  website: urlString.nullable(),       // ← antes: z.string().url().nullable()
+  imageUrl: imageUrlString.nullable(), // prev: z.string().url().nullable()
+  website: urlString.nullable(),       // prev: z.string().url().nullable()
 });
 
-// Categoría con resumen breve en 3 bullets
+// Categoria con resumen breve en 3 bullets
 const categoryWithSummarySchema = z.object({
   items: z.array(placeSchema).min(3).max(10),
   summary: z.array(z.string()).length(3),
@@ -54,8 +54,16 @@ export const propertySchema = z.object({
 });
 
 const propertiesWithSummarySchema = z.object({
-  items: z.array(propertySchema).min(3).max(10),
+  items: z.array(propertySchema).max(10),
   summary: z.string(),
+}).superRefine((value, ctx) => {
+  if (value.items.length > 0 && value.items.length < 3) {
+    ctx.addIssue({ code: "custom", message: "Provide either zero or at least three properties", path: ["items"] });
+  }
+
+  if (value.items.length > 0 && !value.summary.trim()) {
+    ctx.addIssue({ code: "custom", message: "Summary is required when properties are provided", path: ["summary"] });
+  }
 });
 
 // ===== Core =====
@@ -93,7 +101,7 @@ export const coreSchema = z.object({
     }),
     placesOfInterest: z.array(z.string()).max(5),
     lifestyleTags: z.array(z.string()).max(6),
-  })).min(3).max(10), // <-- aquí cambiamos length(3) a rango
+  })).min(3).max(10), // <-- aqui cambiamos length(3) a rango
   propertySuggestion: z.object({
     fullDescription: nonEmptyText,
     type: z.string()
@@ -117,11 +125,9 @@ export const areaDetailsSchema = z.object({
   restaurants: categoryWithSummarySchema,
   pets: categoryWithSummarySchema,
   hobbies: categoryWithSummarySchema,
-  // Permitimos null: el modelo a veces omite esta sección
-  properties: propertiesWithSummarySchema.nullable(),
+  // Permitimos fallback vacio: el modelo a veces omite esta seccion
+  properties: z.preprocess(
+    (value) => (value == null ? { items: [], summary: "" } : value),
+    propertiesWithSummarySchema
+  ),
 });
-
-
-
-
-
