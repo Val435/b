@@ -192,6 +192,7 @@ export async function fetchVerifiedImage(
     lat?: number;
     lng?: number;
     photoIndex?: number;
+     mode?: "area" | "property" | "poi"; // default: "area"
   }
 ): Promise<string | null> {
   try {
@@ -208,6 +209,7 @@ export async function fetchVerifiedImage(
     const languageCode = opts?.languageCode ?? "en";
     const regionCode   = opts?.regionCode   ?? "US";
     const photoIndex   = opts?.photoIndex ?? 0;
+    const mode         = opts?.mode ?? "area";
 
     const seen = new Set<string>();
     const queries: string[] = [];
@@ -316,8 +318,22 @@ export async function fetchVerifiedImage(
 
           const det = detRes.json;
           if (!det.photos?.length) continue;
-          if (looksCommercial({ types: det.types, displayName: { text: "" } })) continue;
-          if (!residentialish({ types: det.types })) continue;
+
+          // 👇 APLICAR FILTROS SEGÚN "mode"
+          const types = det.types || [];
+
+          if (mode === "property") {
+            // Para propiedades: evitar cosas comerciales y exigir “residencial-ish”
+            if (looksCommercial({ types, displayName: { text: "" } })) continue;
+            if (!residentialish({ types })) continue;
+          } else if (mode === "area") {
+            // Para el área (ciudad/barrio): puedes mantener un filtro suave comercial,
+            // pero NO exijas residentialish (miradores, parques del área, etc.)
+            if (looksCommercial({ types, displayName: { text: "" } })) continue;
+          } else {
+            // mode === "poi" (school, park, restaurant, etc.)
+            // NO apliques filtros; queremos la foto del POI
+          }
 
           const ph = det.photos[photoIndex] ?? det.photos[0];
           if (ph?.name) {

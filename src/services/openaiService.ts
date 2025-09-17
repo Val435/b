@@ -75,36 +75,35 @@ function sanitizeAlmostJson(text: string): string {
   const last = Math.max(s.lastIndexOf("}"), s.lastIndexOf("]"));
   if (first >= 0 && last > first) s = s.slice(first, last + 1);
 
-  
+  // 2) normalizaciones básicas
   s = s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
-
-  s = s.replace(/,(\s*[\]}])/g, "$1");
- 
-  s = s.replace(/}\s*{/g, "},{");
-
-  s = s.replace(/}\s*},/g, "},");
-
-  s = s.replace(/}\s*}\s*{/g, "},{");
-
-  s = s.replace(/(\]|\}|")\s*,?\s*}\s*(?=\s*[,}\]])/g, (_m, g1) => `${g1}]`);
-
-  s = s.replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+  s = s.replace(/,(\s*[\]}])/g, "$1");      // comas colgantes
+  s = s.replace(/}\s*{/g, "},{");           // }{ → },{
+  s = s.replace(/}\s*},/g, "},");           // }}, → },
+  s = s.replace(/}\s*}\s*{/g, "},{");       // }}{ → },{
+  s = s.replace(/[\u0000-\u001F\u007F-\u009F]/g, ""); // control chars
   s = s.replace(/\r\n?/g, "\n");
+
+  // 3) 🔧 FIX del caso reportado: cerraron un objeto con ']' en lugar de '}' dentro de un array de objetos.
+  //    ... "prop":"valor"] , {  →  ... "prop":"valor"} , {
+  //    3.1) caso específico de website (lo más común que viste)
+  s = s.replace(/("website"\s*:\s*"[^"]*")\s*\]\s*,\s*\{/g, '$1}, {');
+  //    3.2) genérico para cualquier propiedad string
+  s = s.replace(/("[^"]*"\s*:\s*"[^"]*")\s*\]\s*,\s*\{/g, '$1}, {');
+  //    3.3) genérico para boolean/null/número
+  s = s.replace(/("([^"]+)"\s*:\s*(?:true|false|null|-?\d+(?:\.\d+)?))\s*\]\s*,\s*\{/g, '$1}, {');
 
   return s.trim();
 }
-
-
 
 function extractResponseText(raw: any): string {
   return (
     raw?.output_text ??
     raw?.output?.[0]?.content?.[0]?.text ??
-    raw?.choices?.[0]?.message?.content ?? 
+    raw?.choices?.[0]?.message?.content ??
     ""
   );
 }
-
 
 async function mapWithConcurrencyLimit<T, R>(
   items: T[],
@@ -127,24 +126,23 @@ async function mapWithConcurrencyLimit<T, R>(
   return results;
 }
 
-
 async function parseWithSimpleFallback<T>(
   reqArgs: Parameters<ReturnType<typeof getOpenAI>["responses"]["parse"]>[0],
   schema: z.ZodTypeAny
 ): Promise<T> {
   const openai = getOpenAI();
 
- 
   try {
     const r = await openai.responses.parse(reqArgs);
     const parsed = (r.output_parsed ?? null) as T | null;
     if (!parsed) throw new Error("Parsed output is null");
     return parsed;
   } catch (e0: any) {
-   
+    // pedir respuesta cruda
     const raw = await openai.responses.create(reqArgs);
     let text = extractResponseText(raw);
 
+    // a) intento directo
     try {
       const obj = JSON.parse(text);
       return schema.parse(obj) as T;
@@ -153,6 +151,7 @@ async function parseWithSimpleFallback<T>(
       if (m) logWindowAround(text, parseInt(m[1], 10));
     }
 
+    // b) saneo propio (incluye FIX de '"],{' → '"},{')
     const cleaned = sanitizeAlmostJson(text);
     try {
       const obj = JSON.parse(cleaned);
@@ -170,15 +169,22 @@ async function parseWithSimpleFallback<T>(
       // sigue
     }
 
-    // d) Reparación agresiva
+    // d) Reparación agresiva con jsonrepair
     try {
       const repaired = jsonrepair(cleaned);
       const obj = JSON.parse(repaired);
       return schema.parse(obj) as T;
-    } catch (eFinal) {
-      // eslint-disable-next-line no-console
-      console.error("❌ JSON irreparable. Head:\n", String(text).slice(0, 400));
-      throw eFinal;
+    } catch {
+      // e) Último intento: barrido amplio de cualquier '],{' remanente
+      try {
+        const lastResort = cleaned.replace(/\]\s*,\s*\{/g, "}, {");
+        const obj = JSON.parse(lastResort);
+        return schema.parse(obj) as T;
+      } catch (eFinal) {
+        // eslint-disable-next-line no-console
+        console.error("❌ JSON irreparable. Head:\n", String(text).slice(0, 400));
+        throw eFinal;
+      }
     }
   }
 }
