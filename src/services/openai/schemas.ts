@@ -40,7 +40,7 @@ export const propertySchema = z.object({
   price: z.string(),
   description: z.string(),
   fullDescription: nonEmptyText,
-  imageUrls: z.array(imageUrlString).max(5).default([]), // sin .min(3)
+  imageUrls: z.array(imageUrlString).max(5), // sin .min(3)
   details: z.object({
     type: z.string()
       .transform(s => s.toLowerCase().replace(/\s+/g, "_"))
@@ -91,8 +91,8 @@ export const coreSchema = z.object({
         }),
       }),
     }),
-    placesOfInterest: z.array(z.string()).max(5).default([]),
-    lifestyleTags: z.array(z.string()).max(6).default([]),
+    placesOfInterest: z.array(z.string()).max(5),
+    lifestyleTags: z.array(z.string()).max(6),
   })).min(3).max(10), // <-- aquí cambiamos length(3) a rango
   propertySuggestion: z.object({
     fullDescription: nonEmptyText,
@@ -117,6 +117,11 @@ export const areaDetailsSchema = z.object({
   restaurants: categoryWithSummarySchema,
   pets: categoryWithSummarySchema,
   hobbies: categoryWithSummarySchema,
-  // Hacer opcional: el modelo a veces omite esta sección
-  properties: propertiesWithSummarySchema.optional(),
+  // Permitimos null: el modelo a veces omite esta sección
+  properties: propertiesWithSummarySchema.nullable(),
 });
+
+
+
+
+
