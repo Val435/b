@@ -1,6 +1,55 @@
 // src/services/saveRecommendationService.ts
 import prisma from "../config/prisma";
 
+const DEFAULT_PLACEHOLDER = "https://placehold.co/600x400?text=No+Image";
+
+const ensureGallery = (item: any): string[] => {
+  const gallery = Array.isArray(item?.imageGallery)
+    ? item.imageGallery.filter((url: any) => typeof url === "string" && url.trim())
+    : [];
+  if (!gallery.length && typeof item?.imageUrl === "string" && item.imageUrl.trim()) {
+    gallery.push(item.imageUrl.trim());
+  }
+  const fallback =
+    typeof item?.imageUrl === "string" && item.imageUrl.trim()
+      ? item.imageUrl.trim()
+      : DEFAULT_PLACEHOLDER;
+  while (gallery.length < 3) {
+    gallery.push(fallback);
+  }
+  return gallery.slice(0, 3);
+};
+
+const ensureDirection = (
+  raw: any,
+  name: string,
+  areaName: string,
+  areaState: string
+): string => {
+  const candidate = typeof raw === "string" ? raw.trim() : "";
+  if (candidate) {
+    return candidate;
+  }
+  const fallback = [name, areaName, areaState].filter(Boolean).join(", ");
+  return fallback;
+};
+
+const mapAmenity = (
+  item: any,
+  areaId: number,
+  areaName: string,
+  areaState: string
+) => ({
+  name: item.name,
+  description: item.description,
+  fullDescription: item.fullDescription ?? "",
+  imageUrl: item.imageUrl ?? null,
+  imageGallery: ensureGallery(item),
+  website: item.website ?? null,
+  direction: ensureDirection(item.direction, item.name, areaName, areaState),
+  areaId,
+});
+
 export async function saveRecommendation(
   outputParsed: any,
   userId: number,
@@ -33,6 +82,8 @@ export async function saveRecommendation(
 
     const areasMeta: {
       areaId: number;
+      areaName: string;
+      areaState: string;
       schools: any[];
       socialLife: any[];
       shopping: any[];
@@ -127,6 +178,8 @@ export async function saveRecommendation(
       // Guardamos metadata para batch de amenities y properties
       areasMeta.push({
         areaId,
+        areaName: name,
+        areaState: state,
         schools: schoolsItems,
         socialLife,
         shopping,
@@ -149,6 +202,8 @@ export async function saveRecommendation(
     areasMeta.map(
       async ({
         areaId,
+        areaName,
+        areaState,
         schools,
         socialLife,
         shopping,
@@ -165,140 +220,70 @@ export async function saveRecommendation(
         if (schools.length) {
           tasks.push(
             prisma.school.createMany({
-              data: schools.map((x) => ({
-                name: x.name,
-                description: x.description,
-                fullDescription: x.fullDescription ?? "",
-                imageUrl: x.imageUrl ?? null,
-                website: x.website ?? null,
-                areaId,
-              })),
+              data: schools.map((x) => mapAmenity(x, areaId, areaName, areaState)),
             })
           );
         }
         if (socialLife.length) {
           tasks.push(
             prisma.socialLife.createMany({
-              data: socialLife.map((x) => ({
-                name: x.name,
-                description: x.description,
-                fullDescription: x.fullDescription ?? "",
-                imageUrl: x.imageUrl ?? null,
-                website: x.website ?? null,
-                areaId,
-              })),
+              data: socialLife.map((x) => mapAmenity(x, areaId, areaName, areaState)),
             })
           );
         }
         if (shopping.length) {
           tasks.push(
             prisma.shopping.createMany({
-              data: shopping.map((x) => ({
-                name: x.name,
-                description: x.description,
-                fullDescription: x.fullDescription ?? "",
-                imageUrl: x.imageUrl ?? null,
-                website: x.website ?? null,
-                areaId,
-              })),
+              data: shopping.map((x) => mapAmenity(x, areaId, areaName, areaState)),
             })
           );
         }
         if (greenSpaces.length) {
           tasks.push(
             prisma.greenSpace.createMany({
-              data: greenSpaces.map((x) => ({
-                name: x.name,
-                description: x.description,
-                fullDescription: x.fullDescription ?? "",
-                imageUrl: x.imageUrl ?? null,
-                website: x.website ?? null,
-                areaId,
-              })),
+              data: greenSpaces.map((x) => mapAmenity(x, areaId, areaName, areaState)),
             })
           );
         }
         if (sports.length) {
           tasks.push(
             prisma.sport.createMany({
-              data: sports.map((x) => ({
-                name: x.name,
-                description: x.description,
-                fullDescription: x.fullDescription ?? "",
-                imageUrl: x.imageUrl ?? null,
-                website: x.website ?? null,
-                areaId,
-              })),
+              data: sports.map((x) => mapAmenity(x, areaId, areaName, areaState)),
             })
           );
         }
         if (transportation.length) {
           tasks.push(
             prisma.transportation.createMany({
-              data: transportation.map((x) => ({
-                name: x.name,
-                description: x.description,
-                fullDescription: x.fullDescription ?? "",
-                imageUrl: x.imageUrl ?? null,
-                website: x.website ?? null,
-                areaId,
-              })),
+              data: transportation.map((x) => mapAmenity(x, areaId, areaName, areaState)),
             })
           );
         }
         if (family.length) {
           tasks.push(
             prisma.family.createMany({
-              data: family.map((x) => ({
-                name: x.name,
-                description: x.description,
-                fullDescription: x.fullDescription ?? "",
-                imageUrl: x.imageUrl ?? null,
-                website: x.website ?? null,
-                areaId,
-              })),
+              data: family.map((x) => mapAmenity(x, areaId, areaName, areaState)),
             })
           );
         }
         if (restaurants.length) {
           tasks.push(
             prisma.restaurant.createMany({
-              data: restaurants.map((x) => ({
-                name: x.name,
-                description: x.description,
-                fullDescription: x.fullDescription ?? "",
-                imageUrl: x.imageUrl ?? null,
-                website: x.website ?? null,
-                areaId,
-              })),
+              data: restaurants.map((x) => mapAmenity(x, areaId, areaName, areaState)),
             })
           );
         }
         if (pets.length) {
           tasks.push(
             prisma.pet.createMany({
-              data: pets.map((x) => ({
-                name: x.name,
-                description: x.description,
-                fullDescription: x.fullDescription ?? "",
-                imageUrl: x.imageUrl ?? null,
-                website: x.website ?? null,
-                areaId,
-              })),
+              data: pets.map((x) => mapAmenity(x, areaId, areaName, areaState)),
             })
           );
         }
         if (hobbies.length) {
           tasks.push(
             prisma.hobby.createMany({
-              data: hobbies.map((x) => ({
-                name: x.name,
-                description: x.description,
-                fullDescription: x.fullDescription ?? "",
-                imageUrl: x.imageUrl ?? null,
-                website: x.website ?? null,
-                areaId,
-              })),
+              data: hobbies.map((x) => mapAmenity(x, areaId, areaName, areaState)),
             })
           );
         }

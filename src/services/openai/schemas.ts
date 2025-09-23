@@ -26,6 +26,7 @@ const placeSchema = z.object({
   fullDescription: nonEmptyText,
   imageUrl: imageUrlString.nullable(), // prev: z.string().url().nullable()
   website: urlString.nullable(),       // prev: z.string().url().nullable()
+  direction: z.string().min(10),
 });
 
 // Categoria con resumen breve en 3 bullets

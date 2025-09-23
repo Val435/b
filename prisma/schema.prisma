@@ -235,7 +235,9 @@ model School {
   description     String
   fullDescription String?
   imageUrl        String?
+  imageGallery    String[] @default([])
   website         String? // ← nullable
+  direction       String   @default("")
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -246,7 +248,9 @@ model SocialLife {
   description     String
   fullDescription String?
   imageUrl        String?
+  imageGallery    String[] @default([])
   website         String? // ← nullable
+  direction       String   @default("")
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -257,7 +261,9 @@ model Shopping {
   description     String
   fullDescription String?
   imageUrl        String?
+  imageGallery    String[] @default([])
   website         String? // ← nullable
+  direction       String   @default("")
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -268,7 +274,9 @@ model GreenSpace {
   description     String
   fullDescription String?
   imageUrl        String?
+  imageGallery    String[] @default([])
   website         String? // ← nullable
+  direction       String   @default("")
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -279,7 +287,9 @@ model Sport {
   description     String
   fullDescription String?
   imageUrl        String?
+  imageGallery    String[] @default([])
   website         String? // ← nullable
+  direction       String   @default("")
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -290,7 +300,9 @@ model Transportation {
   description     String
   fullDescription String?
   imageUrl        String?
+  imageGallery    String[] @default([])
   website         String? // ← nullable
+  direction       String   @default("")
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -301,7 +313,9 @@ model Family {
   description     String
   fullDescription String?
   imageUrl        String?
+  imageGallery    String[] @default([])
   website         String? // ← nullable
+  direction       String   @default("")
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -312,7 +326,9 @@ model Restaurant {
   description     String
   fullDescription String?
   imageUrl        String?
+  imageGallery    String[] @default([])
   website         String? // ← nullable
+  direction       String   @default("")
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -323,7 +339,9 @@ model Pet {
   description     String
   fullDescription String?
   imageUrl        String?
+  imageGallery    String[] @default([])
   website         String? // ← nullable
+  direction       String   @default("")
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }
@@ -334,7 +352,9 @@ model Hobby {
   description     String
   fullDescription String?
   imageUrl        String?
+  imageGallery    String[] @default([])
   website         String? // ← nullable
+  direction       String   @default("")
   area            RecommendedArea @relation(fields: [areaId], references: [id])
   areaId          Int
 }

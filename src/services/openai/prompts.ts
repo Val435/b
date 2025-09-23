@@ -14,6 +14,7 @@ TASK
 
 OUTPUT RULES
 - Integers only; concise text; match the JSON schema exactly.
+- direction: Provide the full address (\`direction\`) for each item in the format "Fort Mason, San Francisco, CA 94123, Estados Unidos".
 `.trim();
 
 
@@ -40,4 +41,6 @@ IMAGE RULES
 TEXT RULES
 - Short descriptions; match schema exactly.
 - Cada item debe incluir \`fullDescription\` (≥20 caracteres) y \`website\` (URL válida o \`null\` si no existe).
+- direction: Provide the full address (\`direction\`) for each item in the format "Fort Mason, San Francisco, CA 94123, Estados Unidos".
 `.trim();
+

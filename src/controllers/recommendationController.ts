@@ -13,6 +13,24 @@ import { safeUrl } from "../utils/url";
 
 // ---------- helpers ----------
 function mapRecommendationToResponse(reco: any) {
+  const mapAmenityResponse = (list: any[] | undefined, area: any) =>
+    (Array.isArray(list) ? list : []).map((item: any) => {
+      const direction =
+        typeof item.direction === 'string' && item.direction.trim()
+          ? item.direction.trim()
+          : [item.name, area?.name, area?.state].filter(Boolean).join(', ');
+
+      return {
+        name: item.name,
+        description: item.description,
+        fullDescription: item.fullDescription ?? '',
+        imageUrl: safeUrl(item.imageUrl),
+        imageGallery: (Array.isArray(item.imageGallery) ? item.imageGallery : []).map((url: string) => safeUrl(url)),
+        website: item.website,
+        direction,
+      };
+    });
+
   return {
     recommendedAreas: reco.areas.map((area: any) => ({
       name: area.name,
@@ -47,86 +65,26 @@ function mapRecommendationToResponse(reco: any) {
         },
       },
 
-      schools: area.schools.map((school: any) => ({
-        name: school.name,
-        description: school.description,
-        fullDescription: school.fullDescription ?? "",
-        imageUrl: safeUrl(school.imageUrl),
-        website: school.website,
-      })),
+      schools: mapAmenityResponse(area.schools, area),
       schoolsSummary: area.schoolsSummary ?? [],
 
-      socialLife: (area.socialLife ?? []).map((x: any) => ({
-        name: x.name,
-        description: x.description,
-        fullDescription: x.fullDescription ?? "",
-        imageUrl: safeUrl(x.imageUrl),
-        website: x.website,
-      })),
+      socialLife: mapAmenityResponse(area.socialLife, area),
       socialLifeSummary: area.socialLifeSummary ?? [],
-      shopping: (area.shopping ?? []).map((x: any) => ({
-        name: x.name,
-        description: x.description,
-        fullDescription: x.fullDescription ?? "",
-        imageUrl: safeUrl(x.imageUrl),
-        website: x.website,
-      })),
+      shopping: mapAmenityResponse(area.shopping, area),
       shoppingSummary: area.shoppingSummary ?? [],
-      greenSpaces: (area.greenSpaces ?? []).map((x: any) => ({
-        name: x.name,
-        description: x.description,
-        fullDescription: x.fullDescription ?? "",
-        imageUrl: safeUrl(x.imageUrl),
-        website: x.website,
-      })),
+      greenSpaces: mapAmenityResponse(area.greenSpaces, area),
       greenSpacesSummary: area.greenSpacesSummary ?? [],
-      sports: (area.sports ?? []).map((x: any) => ({
-        name: x.name,
-        description: x.description,
-        fullDescription: x.fullDescription ?? "",
-        imageUrl: safeUrl(x.imageUrl),
-        website: x.website,
-      })),
+      sports: mapAmenityResponse(area.sports, area),
       sportsSummary: area.sportsSummary ?? [],
-      transportation: (area.transportation ?? []).map((x: any) => ({
-        name: x.name,
-        description: x.description,
-        fullDescription: x.fullDescription ?? "",
-        imageUrl: safeUrl(x.imageUrl),
-        website: x.website,
-      })),
+      transportation: mapAmenityResponse(area.transportation, area),
       transportationSummary: area.transportationSummary ?? [],
-      family: (area.family ?? []).map((x: any) => ({
-        name: x.name,
-        description: x.description,
-        fullDescription: x.fullDescription ?? "",
-        imageUrl: safeUrl(x.imageUrl),
-        website: x.website,
-      })),
+      family: mapAmenityResponse(area.family, area),
       familySummary: area.familySummary ?? [],
-      restaurants: (area.restaurants ?? []).map((x: any) => ({
-        name: x.name,
-        description: x.description,
-        fullDescription: x.fullDescription ?? "",
-        imageUrl: safeUrl(x.imageUrl),
-        website: x.website,
-      })),
+      restaurants: mapAmenityResponse(area.restaurants, area),
       restaurantsSummary: area.restaurantsSummary ?? [],
-      pets: (area.pets ?? []).map((x: any) => ({
-        name: x.name,
-        description: x.description,
-        fullDescription: x.fullDescription ?? "",
-        imageUrl: safeUrl(x.imageUrl),
-        website: x.website,
-      })),
+      pets: mapAmenityResponse(area.pets, area),
       petsSummary: area.petsSummary ?? [],
-      hobbies: (area.hobbies ?? []).map((x: any) => ({
-        name: x.name,
-        description: x.description,
-        fullDescription: x.fullDescription ?? "",
-        imageUrl: safeUrl(x.imageUrl),
-        website: x.website,
-      })),
+      hobbies: mapAmenityResponse(area.hobbies, area),
       hobbiesSummary: area.hobbiesSummary ?? [],
 
       placesOfInterest: area.placesOfInterest ?? [],

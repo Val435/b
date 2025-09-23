@@ -416,9 +416,44 @@ export async function sanitizeImages(parsed: any) {
 
       } else {
 
-        const { finalUrl } = await processUrl(it, it?.imageUrl);
+        const seeds = Array.isArray(it.imageGallery)
+          ? it.imageGallery.filter((url: any) => typeof url === "string" && url.trim())
+          : [];
+        const gallery: string[] = [];
+        const seen = new Set<string>();
 
-        it.imageUrl = finalUrl;
+        const pushIfNew = (url?: string | null) => {
+          if (!url) return;
+          const trimmed = url.trim();
+          if (!trimmed) return;
+          if (seen.has(trimmed)) return;
+          seen.add(trimmed);
+          gallery.push(trimmed);
+        };
+
+        const initialSources = seeds.length
+          ? seeds
+          : (typeof it?.imageUrl === "string" && it.imageUrl.trim() ? [it.imageUrl] : []);
+
+        for (let i = 0; i < initialSources.length && i < 3; i++) {
+          const { finalUrl } = await processUrl(it, initialSources[i], i);
+          pushIfNew(finalUrl);
+        }
+
+        let extraIndex = initialSources.length;
+        while (gallery.length < 3 && extraIndex < initialSources.length + 3) {
+          const { finalUrl } = await processUrl(it, undefined, extraIndex);
+          pushIfNew(finalUrl);
+          extraIndex += 1;
+        }
+
+        while (gallery.length < 3) {
+          const fallback = FALLBACKS[type];
+          gallery.push(fallback);
+        }
+
+        it.imageGallery = gallery.slice(0, 3);
+        it.imageUrl = it.imageGallery[0] ?? FALLBACKS[type];
 
       }
 
