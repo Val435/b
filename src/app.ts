@@ -9,6 +9,7 @@ import openaiRoutes from './routes/openaiRoutes';
 import recommendationRoutes from './routes/recommendationRoutes';
 import journeyRoutes from './routes/journeyRoutes';
 import profileVersionRoutes from './routes/profileVersionRoutes';
+import debugRoutes from './routes/debugRoutes';
 
 import { loadCities } from "./services/cityService";
 import cityRoutes from "./routes/cityRoutes";
@@ -28,6 +29,7 @@ app.use("/api/recommendations", recommendationRoutes);
 app.use('/api/journeys', journeyRoutes);
 app.use("/api/user/profile-versions", profileVersionRoutes);
 app.use("/api", cityRoutes);
+app.use('/api/debug', debugRoutes);
 
 app.get('/api/ping', (_req, res) => {
   res.json({ message: 'pong' });
