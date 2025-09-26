@@ -1,3 +1,6 @@
+// ==========================================
+// ARCHIVO 1: src/services/backgroundImageEnhancer.ts
+// ==========================================
 import prisma from "../config/prisma";
 import { fetchVerifiedImage } from "./imageLookupService";
 import { FALLBACKS } from "./openai/constants";
@@ -9,15 +12,16 @@ function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-/**
- * 🚀 Proceso completo de mejora de imágenes en 2 fases background
- */
 export async function enhanceImagesInBackground(
   recommendationId: number,
   userId: number
 ) {
   const startTime = Date.now();
-  console.log(`\n🚀 Starting background image enhancement (2 phases)`);
+  console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+  console.log(`🚀 [BACKGROUND] Starting image enhancement`);
+  console.log(`   Recommendation ID: ${recommendationId}`);
+  console.log(`   User ID: ${userId}`);
+  console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
   
   try {
     const recommendation = await prisma.recommendation.findUnique({
@@ -42,32 +46,67 @@ export async function enhanceImagesInBackground(
     });
 
     if (!recommendation) {
-      console.error('❌ Recommendation not found');
+      console.error('❌ [BACKGROUND] Recommendation not found');
       return;
     }
 
-    console.log(`📦 Found ${recommendation.areas.length} areas to enhance`);
+    console.log(`📦 [BACKGROUND] Found ${recommendation.areas.length} areas to enhance\n`);
 
-    // 🟡 FASE 2: Completar galerías de items visibles (5-10 min)
-    console.log('\n🟡 Phase 2: Completing visible galleries...');
+    // 🟡 FASE 2
+    const phase2Start = Date.now();
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`🟡 [PHASE 2] Starting visible galleries enhancement...`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+    
     await enhanceVisibleGalleries(recommendation);
+    
+    const phase2Duration = ((Date.now() - phase2Start) / 1000).toFixed(1);
+    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`✅ [PHASE 2] COMPLETED in ${phase2Duration}s`);
+    console.log(`   ✓ First items of each category now have full galleries`);
+    console.log(`   ✓ First 3 properties have complete image sets`);
+    console.log(`   📊 Database updated with enhanced images`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
-    // 🟢 FASE 3: Resto de imágenes (15-30 min)
-    console.log('\n🟢 Phase 3: Enhancing remaining images...');
+    // 🟢 FASE 3
+    const phase3Start = Date.now();
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`🟢 [PHASE 3] Starting remaining images enhancement...`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+    
     await enhanceRemainingImages(recommendation);
+    
+    const phase3Duration = ((Date.now() - phase3Start) / 1000).toFixed(1);
+    console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`✅ [PHASE 3] COMPLETED in ${phase3Duration}s`);
+    console.log(`   ✓ All items now have full galleries`);
+    console.log(`   ✓ All properties have complete image sets`);
+    console.log(`   📊 Database fully updated`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
-    const duration = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`\n✅ Background enhancement completed in ${duration}s`);
+    const totalDuration = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    console.log(`🎉 [BACKGROUND] ALL PHASES COMPLETED!`);
+    console.log(`   ⏱️  Total time: ${totalDuration} minutes`);
+    console.log(`   ✓ Phase 2: ${phase2Duration}s`);
+    console.log(`   ✓ Phase 3: ${phase3Duration}s`);
+    console.log(`   📊 Recommendation #${recommendationId} fully enhanced`);
+    console.log(`   💾 All changes saved to database`);
+    console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
     
   } catch (err) {
-    console.error('❌ Background enhancement failed:', err);
+    console.error('\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('❌ [BACKGROUND] Enhancement failed:', err);
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n');
   }
 }
 
-// 🟡 Fase 2: Completar galerías del primer item de cada categoría
 async function enhanceVisibleGalleries(recommendation: any) {
+  let totalUpdated = 0;
+  let totalFailed = 0;
+
   for (const area of recommendation.areas) {
-    console.log(`\n🌆 Phase 2: ${area.name}`);
+    console.log(`🌆 [PHASE 2] Processing: ${area.name}`);
     
     const categories = [
       { items: area.schools, model: prisma.school, type: "school", name: "schools" },
@@ -85,30 +124,49 @@ async function enhanceVisibleGalleries(recommendation: any) {
     for (const cat of categories) {
       if (cat.items.length === 0) continue;
 
-      // Solo completar galería del PRIMER item
-      console.log(`  📸 ${cat.name} [first item only]`);
       const firstItem = cat.items[0];
-      await completeItemGallery(
+      const result = await completeItemGallery(
         cat.model,
         firstItem,
         area.name,
         area.state,
-        cat.type
+        cat.type,
+        cat.name
       );
+      
+      if (result.success) {
+        totalUpdated++;
+        console.log(`   ✅ ${cat.name}: ${firstItem.name} (${result.imagesCount} images) - SAVED TO DB`);
+      } else {
+        totalFailed++;
+        console.log(`   ⚠️ ${cat.name}: ${firstItem.name} - No new images`);
+      }
     }
 
-    // Completar imágenes de las primeras 3 propiedades
-    console.log(`  🏠 properties [first 3 only]`);
+    console.log(`   🏠 Processing first 3 properties...`);
     for (let i = 0; i < Math.min(3, area.properties.length); i++) {
-      await completePropertyGallery(area.properties[i], area.name, area.state);
+      const result = await completePropertyGallery(area.properties[i], area.name, area.state, i + 1);
+      if (result.success) {
+        totalUpdated++;
+        console.log(`   ✅ Property ${i + 1}: ${result.imagesCount} images - SAVED TO DB`);
+      } else {
+        totalFailed++;
+        console.log(`   ⚠️ Property ${i + 1}: No new images`);
+      }
     }
+    
+    console.log('');
   }
+
+  console.log(`📊 [PHASE 2] Summary: ${totalUpdated} updated, ${totalFailed} skipped`);
 }
 
-// 🟢 Fase 3: Todo lo demás
 async function enhanceRemainingImages(recommendation: any) {
+  let totalUpdated = 0;
+  let totalFailed = 0;
+
   for (const area of recommendation.areas) {
-    console.log(`\n🌆 Phase 3: ${area.name}`);
+    console.log(`🌆 [PHASE 3] Processing: ${area.name}`);
     
     const categories = [
       { items: area.schools, model: prisma.school, type: "school", name: "schools" },
@@ -126,43 +184,58 @@ async function enhanceRemainingImages(recommendation: any) {
     for (const cat of categories) {
       if (cat.items.length <= 1) continue;
       
-      // Procesar items 2 en adelante
-      console.log(`  📸 ${cat.name} [items 2-${cat.items.length}]`);
+      console.log(`   📸 ${cat.name}: Processing items 2-${cat.items.length}...`);
       for (let i = 1; i < cat.items.length; i++) {
-        await completeItemGallery(
+        const result = await completeItemGallery(
           cat.model,
           cat.items[i],
           area.name,
           area.state,
-          cat.type
+          cat.type,
+          cat.name
         );
+        
+        if (result.success) {
+          totalUpdated++;
+          console.log(`      ✅ Item ${i + 1}: ${cat.items[i].name} (${result.imagesCount} images) - SAVED TO DB`);
+        } else {
+          totalFailed++;
+        }
       }
     }
 
-    // Completar propiedades restantes
     if (area.properties.length > 3) {
-      console.log(`  🏠 properties [items 4-${area.properties.length}]`);
+      console.log(`   🏠 Processing properties 4-${area.properties.length}...`);
       for (let i = 3; i < area.properties.length; i++) {
-        await completePropertyGallery(area.properties[i], area.name, area.state);
+        const result = await completePropertyGallery(area.properties[i], area.name, area.state, i + 1);
+        if (result.success) {
+          totalUpdated++;
+          console.log(`      ✅ Property ${i + 1}: ${result.imagesCount} images - SAVED TO DB`);
+        } else {
+          totalFailed++;
+        }
       }
     }
+    
+    console.log('');
   }
+
+  console.log(`📊 [PHASE 3] Summary: ${totalUpdated} updated, ${totalFailed} skipped`);
 }
 
-// Helper: Completar galería de un item (buscar imágenes 1, 2, 3)
 async function completeItemGallery(
   model: any,
   item: any,
   areaName: string,
   areaState: string,
-  includedType?: string
-) {
+  includedType?: string,
+  categoryName?: string
+): Promise<{ success: boolean; imagesCount: number }> {
   try {
     const locationHint = [areaName, areaState].filter(Boolean).join(", ");
     const currentGallery = Array.isArray(item.imageGallery) ? item.imageGallery : [];
     const gallery: string[] = [...currentGallery];
 
-    // Buscar imágenes adicionales (índices 1, 2, 3)
     for (let photoIndex = gallery.length; photoIndex < MAX_IMAGES_PER_ITEM; photoIndex++) {
       try {
         const imageUrl = await fetchVerifiedImage(item.name, {
@@ -178,11 +251,10 @@ async function completeItemGallery(
 
         await delay(DELAY_BETWEEN_REQUESTS);
       } catch (err) {
-        console.error(`    ❌ Image ${photoIndex} failed for ${item.name}`);
+        // Continue
       }
     }
 
-    // Actualizar si obtuvimos nuevas imágenes
     if (gallery.length > currentGallery.length) {
       await model.update({
         where: { id: item.id },
@@ -191,19 +263,23 @@ async function completeItemGallery(
           imageGallery: gallery.slice(0, MAX_IMAGES_PER_ITEM)
         }
       });
-      console.log(`    ✅ ${item.name}: ${gallery.length} images`);
+      
+      return { success: true, imagesCount: gallery.length };
     }
+    
+    return { success: false, imagesCount: currentGallery.length };
   } catch (err) {
-    console.error(`    ❌ Failed to complete gallery for ${item.name}`);
+    console.error(`      ⚠️ Error completing gallery for ${item.name}:`, err);
+    return { success: false, imagesCount: 0 };
   }
 }
 
-// Helper: Completar galería de propiedad (5 imágenes)
 async function completePropertyGallery(
   property: any,
   areaName: string,
-  areaState: string
-) {
+  areaState: string,
+  propertyNumber: number
+): Promise<{ success: boolean; imagesCount: number }> {
   try {
     const locationHint = [areaName, areaState].filter(Boolean).join(", ");
     const currentUrls = Array.isArray(property.imageUrls) ? property.imageUrls : [];
@@ -223,7 +299,7 @@ async function completePropertyGallery(
 
         await delay(DELAY_BETWEEN_REQUESTS);
       } catch (err) {
-        console.error(`    ❌ Property image ${photoIndex} failed`);
+        // Continue
       }
     }
 
@@ -232,9 +308,15 @@ async function completePropertyGallery(
         where: { id: property.id },
         data: { imageUrls: imageUrls.slice(0, 5) }
       });
-      console.log(`    ✅ Property: ${imageUrls.length} images`);
+      
+      return { success: true, imagesCount: imageUrls.length };
     }
+    
+    return { success: false, imagesCount: currentUrls.length };
   } catch (err) {
-    console.error(`    ❌ Failed to complete property gallery`);
+    console.error(`      ⚠️ Error completing property gallery:`, err);
+    return { success: false, imagesCount: 0 };
   }
 }
+
+

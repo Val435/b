@@ -280,11 +280,14 @@ async function parseWithSimpleFallback<T>(
 
 // ===== Main service =====
 export async function fetchRecommendationsFromOpenAI(userProfile: any) {
-  const openai = getOpenAI();
+  const totalStart = Date.now();
+  console.log("🤖 Starting OpenAI recommendation generation...");
 
-  // === 1) Recomendaciones iniciales (Responses API usa text.format) ===
+  // === 1) Core recommendations ===
+  const coreStart = Date.now();
+  console.log("📝 Step 1/4: Generating core recommendations...");
+  
   const coreFmt = zodTextFormat(coreSchema, "core_reco");
-
   const core = await parseWithSimpleFallback<CoreReco>(
     {
       model: "gpt-4o-2024-08-06",
@@ -292,59 +295,85 @@ export async function fetchRecommendationsFromOpenAI(userProfile: any) {
       input: [
         {
           role: "system",
-          content:
-            `${mainPrompt}\n\nReturn ONLY the JSON object. No prose. No markdown. No backticks. No trailing commas.`,
+          content: `${mainPrompt}\n\nReturn ONLY valid JSON. No markdown, no trailing commas.`,
         },
         { role: "user", content: safeJSONStringify(userProfile) },
       ],
       text: { format: coreFmt },
       temperature: 0,
-      max_output_tokens: 2000,
+      max_output_tokens: 2500, // ⬅️ Asegúrate que esté en 2500
     },
     coreSchema
   );
 
   if (!core.recommendedAreas || core.recommendedAreas.length === 0) {
-    throw new Error("Failed to get recommended areas from OpenAI response.");
+    throw new Error("No recommended areas returned");
   }
 
-  // === 2) Detalles por área (con límite de concurrencia) ===
-  const detailsFmt = zodTextFormat(areaDetailsSchema, "area_details");
+  const coreDuration = ((Date.now() - coreStart) / 1000).toFixed(1);
+  console.log(`✅ Core completed in ${coreDuration}s: ${core.recommendedAreas.length} areas`);
 
+  // === 2) Area details ===
+  const detailsStart = Date.now();
+  console.log(`📝 Step 2/4: Generating details for ${core.recommendedAreas.length} areas...`);
+  
+  const detailsFmt = zodTextFormat(areaDetailsSchema, "area_details");
   const detailsList = await mapWithConcurrencyLimit(
     core.recommendedAreas,
-    3,
-    async (area) => {
+    2, // Concurrencia
+    async (area, index) => {
+      const areaStart = Date.now();
+      console.log(`   [${index + 1}/${core.recommendedAreas.length}] Processing: ${area.name}`);
+      
       const safeArea = JSON.parse(safeJSONStringify(area));
-      return parseWithSimpleFallback<AreaDetails>(
+      const details = await parseWithSimpleFallback<AreaDetails>(
         {
           model: "gpt-4o-2024-08-06",
           tools: [{ type: "web_search_preview" }],
           input: [
             {
               role: "system",
-              content:
-                `${detailsPrompt}\n\nReturn ONLY the JSON object. No prose. No markdown. No backticks. No trailing commas.`,
+              content: `${detailsPrompt}\n\nEach category MUST have 3 items. Return ONLY valid JSON.`,
             },
             { role: "user", content: safeJSONStringify({ userProfile, area: safeArea }) },
           ],
           text: { format: detailsFmt },
           temperature: 0,
-          max_output_tokens: 3500,
+          max_output_tokens: 6000, // ⬅️ CRÍTICO: Debe estar en 6000
         },
         areaDetailsSchema
       );
+      
+      const areaDuration = ((Date.now() - areaStart) / 1000).toFixed(1);
+      console.log(`   ✅ ${area.name} completed in ${areaDuration}s`);
+      return details;
     }
   );
 
+  const detailsDuration = ((Date.now() - detailsStart) / 1000).toFixed(1);
+  console.log(`✅ All area details completed in ${detailsDuration}s`);
+
   // === 3) Merge ===
+  console.log("📝 Step 3/4: Merging data...");
   const mergedAreas = mergeAreas(core, detailsList);
   const finalResult = {
     recommendedAreas: mergedAreas,
     propertySuggestion: core.propertySuggestion,
   };
+  console.log("✅ Data merged");
 
-  // === 4) ✅ SOLO IMÁGENES CRÍTICAS (rápido - 2-3 min) ===
-  console.log('🎯 Fetching critical images only...');
-  return await sanitizeCriticalImages(finalResult);
+  // === 4) Critical images ===
+  const imagesStart = Date.now();
+  console.log("📝 Step 4/4: Fetching critical images...");
+  const result = await sanitizeCriticalImages(finalResult);
+  const imagesDuration = ((Date.now() - imagesStart) / 1000).toFixed(1);
+  console.log(`✅ Critical images fetched in ${imagesDuration}s`);
+
+  const totalDuration = ((Date.now() - totalStart) / 1000).toFixed(1);
+  console.log(`\n🎉 OpenAI generation completed in ${totalDuration}s`);
+  console.log(`   Core: ${coreDuration}s`);
+  console.log(`   Details: ${detailsDuration}s`);
+  console.log(`   Images: ${imagesDuration}s\n`);
+
+  return result;
 }
