@@ -27,6 +27,8 @@ const placeSchema = z.object({
   imageUrl: imageUrlString.nullable(), // prev: z.string().url().nullable()
   website: urlString.nullable(),       // prev: z.string().url().nullable()
   direction: z.string().min(10),
+   latitude: z.number().gte(-90).lte(90),
+  longitude: z.number().gte(-180).lte(180),
 });
 
 // Categoria con resumen breve en 3 bullets

@@ -34,6 +34,21 @@ const ensureDirection = (
   return fallback;
 };
 
+const normalizeCoordinate = (value: any, min: number, max: number): number | null => {
+  const asNumber = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(asNumber)) {
+    return null;
+  }
+  if (asNumber < min || asNumber > max) {
+    return null;
+  }
+  return asNumber;
+};
+
+const ensureLatitude = (value: any): number | null => normalizeCoordinate(value, -90, 90);
+
+const ensureLongitude = (value: any): number | null => normalizeCoordinate(value, -180, 180);
+
 const mapAmenity = (
   item: any,
   areaId: number,
@@ -47,6 +62,8 @@ const mapAmenity = (
   imageGallery: ensureGallery(item),
   website: item.website ?? null,
   direction: ensureDirection(item.direction, item.name, areaName, areaState),
+  latitude: ensureLatitude(item.latitude),
+  longitude: ensureLongitude(item.longitude),
   areaId,
 });
 

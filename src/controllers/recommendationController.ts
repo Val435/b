@@ -28,6 +28,8 @@ function mapRecommendationToResponse(reco: any) {
         imageGallery: (Array.isArray(item.imageGallery) ? item.imageGallery : []).map((url: string) => safeUrl(url)),
         website: item.website,
         direction,
+         latitude: Number.isFinite(item.latitude) ? item.latitude : null,
+        longitude: Number.isFinite(item.longitude) ? item.longitude : null,
       };
     });
 
