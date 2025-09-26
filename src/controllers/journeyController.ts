@@ -5,17 +5,6 @@ import { saveRecommendation } from "../services/saveRecommendationService";
 import { buildProfileVersionData, mergeProfileForJourney } from "../services/profileVersionService";
 import { enhanceImagesInBackground } from "../services/backgroundImageEnhancer";
 
-// Extend Express Request type to include 'user'
-declare global {
-  namespace Express {
-    interface Request {
-      user?: {
-        id?: number;
-        email?: string;
-      };
-    }
-  }
-}
 
 export const createJourney: RequestHandler = async (req, res, next) => {
   try {
@@ -118,8 +107,8 @@ export const runJourney: RequestHandler = async (req, res, next) => {
     
     const openaiDuration = ((Date.now() - openaiStart) / 1000).toFixed(1);
     console.log(`✅ OpenAI completed in ${openaiDuration}s`);
-    
-    // ✅ Guardar
+
+    // ✅ Guardar en DB (ANTES de responder para que el cliente pueda consultarlo)
     const saveStart = Date.now();
     console.log('💾 Saving to database...');
     const saved = await saveRecommendation(reco, authUser.id!, journey.id);
@@ -137,7 +126,7 @@ export const runJourney: RequestHandler = async (req, res, next) => {
     console.log(`🎉 JOURNEY COMPLETED in ${totalDuration}s`);
     console.log('='.repeat(60));
 
-    // ✅ RESPONDER INMEDIATAMENTE
+    // ✅ RESPONDER INMEDIATAMENTE (ya está guardado en DB)
     res.status(200).json({
       success: true,
       message: "Journey completed with priority images. Full gallery loading in background.",
@@ -150,7 +139,7 @@ export const runJourney: RequestHandler = async (req, res, next) => {
       }
     });
 
-    // 🔥 FASES 2 y 3: Background
+    // 🔥 FASES 2 y 3: Background (mejorar imágenes)
     console.log('\n' + '─'.repeat(60));
     console.log('🖼️ Starting background enhancement (phases 2-3)...');
     console.log('─'.repeat(60));

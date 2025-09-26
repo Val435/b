@@ -1,12 +1,29 @@
+declare module 'express-serve-static-core' {
+  interface Request {
+    user?: {
+      id?: number;
+      email?: string;
+      phone?: string;
+      countryCode?: string;
+      isNewUser?: boolean;
+    };
+  }
+}
 import { Request, Response } from 'express';
 import * as userService from '../services/user.service';
 import prisma from '../config/prisma';
 import { generateToken } from '../utils/jwt';
 
+
 // To know who is the user from the token 
 export const getProfile = (req: Request, res: Response) => {
-  // @ts-ignore
   const user = req.user;
+  
+  if (!user) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
+  
   res.json({ user });
 };
 
@@ -20,8 +37,12 @@ export const getAllProfile = async (req: Request, res: Response): Promise<void> 
 };
 
 export const getFullProfile = async (req: Request, res: Response): Promise<void> => {
-  // @ts-ignore
   const user = req.user;
+
+  if (!user?.id) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
 
   try {
     const fullUser = await userService.getFullUserProfile(user.id);
@@ -33,8 +54,13 @@ export const getFullProfile = async (req: Request, res: Response): Promise<void>
 
 
 export const updateProfile = async (req: Request, res: Response): Promise<void> => {
-  // @ts-ignore
   const user = req.user;
+  
+  if (!user?.id || !user?.countryCode) {
+    res.status(401).json({ error: 'Unauthorized or missing user data' });
+    return;
+  }
+  
   const { email, phone } = req.body;
 
   try {
@@ -54,8 +80,12 @@ export const updateProfile = async (req: Request, res: Response): Promise<void> 
 };
 
 export const deleteProfile = async (req: Request, res: Response): Promise<void> => {
-  // @ts-ignore
   const user = req.user;
+
+  if (!user?.id) {
+    res.status(401).json({ error: 'Unauthorized' });
+    return;
+  }
 
   try {
     const deletedUser = await userService.deleteUserById(user.id);
@@ -86,8 +116,14 @@ export const deleteProfile = async (req: Request, res: Response): Promise<void> 
 
 
 export const updateUserDetails = async (req: Request, res: Response): Promise<void> => {
-  // @ts-ignore
   const user = req.user;
+  
+  // ✅ Verificación completa al inicio
+  if (!user?.email || !user?.phone || !user?.countryCode) {
+    res.status(401).json({ error: 'Unauthorized or missing user data' });
+    return;
+  }
+  
   const updatedData = req.body;
 
   try {
@@ -101,9 +137,10 @@ export const updateUserDetails = async (req: Request, res: Response): Promise<vo
 
    
     if (!existingUser && !user.isNewUser) {
-     res.status(403).json({
+      res.status(403).json({
         error: 'Registration is only allowed through the proper flow.',
       });
+      return;
     }
 
     const updatedUser = await userService.updateUserDetails(
@@ -126,5 +163,3 @@ export const updateUserDetails = async (req: Request, res: Response): Promise<vo
     res.status(400).json({ error: msg });
   }
 };
-
-
