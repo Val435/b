@@ -1,4 +1,4 @@
-// src/services/imageLookupService.ts
+// src/services/imageLookupService.ts - OPTIMIZADO
 
 import dotenv from "dotenv";
 dotenv.config();
@@ -16,7 +16,7 @@ const API_KEY =
   "";
 
 if (!API_KEY) {
-  console.warn(" Missing GOOGLE_MAPS_KEY / GOOGLE_PLACES_API_KEY in .env");
+  console.warn("⚠️ Missing GOOGLE_MAPS_KEY / GOOGLE_PLACES_API_KEY in .env");
 }
 
 const DEBUG = (process.env.PLACES_DEBUG || "").toLowerCase() === "true";
@@ -27,53 +27,67 @@ const DEFAULT_MAX_HEIGHT_PX = Number(process.env.PLACES_MAX_HEIGHT_PX) || 800;
 const REQ_TIMEOUT_MS = Number(process.env.IMAGES_HTTP_TIMEOUT_MS) || 15_000;
 const REQ_RETRIES = Number(process.env.IMAGES_HTTP_RETRIES) || 2;
 
-function maskKey(k: string) {
-  if (!k) return "<empty>";
-  return k.length <= 8 ? "<short>" : k.slice(0, 4) + "…" + k.slice(-4);
-}
-
 function log(...args: any[]) {
   if (DEBUG) console.log(...args);
 }
 
-// ✅ Caché mejorado: incluye place_id
+// ✅ Caché mejorado: incluye place_id Y photos[]
 const CACHE_TTL_MS = 1000 * 60 * 60; // 1 hour
+
 type CacheEntry = { 
   photoUri: string; 
-  placeId?: string;
-  totalPhotos?: number;
   expiresAt: number 
 };
-const queryCache = new Map<string, CacheEntry>();
 
-// ✅ Caché específico de place_id por query base (sin photoIndex)
-const placeIdCache = new Map<string, { placeId: string; totalPhotos: number }>();
+type PlaceCacheEntry = {
+  placeId: string;
+  totalPhotos: number;
+  photos: Array<{ name: string }>; // ✅ NUEVO: cachear array de fotos
+  expiresAt: number;
+};
+
+const photoCache = new Map<string, CacheEntry>();
+const placeCache = new Map<string, PlaceCacheEntry>();
 
 function getCachedPhoto(query: string) {
-  const entry = queryCache.get(query);
+  const entry = photoCache.get(query);
   if (!entry) return undefined;
   if (Date.now() > entry.expiresAt) {
-    queryCache.delete(query);
+    photoCache.delete(query);
     return undefined;
   }
   return entry.photoUri;
 }
 
-function setCachedPhoto(query: string, uri: string, placeId?: string, totalPhotos?: number) {
-  queryCache.set(query, { 
-    photoUri: uri, 
-    placeId,
-    totalPhotos,
+function setCachedPhoto(query: string, uri: string) {
+  photoCache.set(query, { 
+    photoUri: uri,
     expiresAt: Date.now() + CACHE_TTL_MS 
   });
 }
 
-function getCachedPlaceId(baseQuery: string) {
-  return placeIdCache.get(baseQuery);
+function getCachedPlace(baseQuery: string) {
+  const entry = placeCache.get(baseQuery);
+  if (!entry) return undefined;
+  if (Date.now() > entry.expiresAt) {
+    placeCache.delete(baseQuery);
+    return undefined;
+  }
+  return entry;
 }
 
-function setCachedPlaceId(baseQuery: string, placeId: string, totalPhotos: number) {
-  placeIdCache.set(baseQuery, { placeId, totalPhotos });
+function setCachedPlace(
+  baseQuery: string, 
+  placeId: string, 
+  totalPhotos: number,
+  photos: Array<{ name: string }>
+) {
+  placeCache.set(baseQuery, { 
+    placeId, 
+    totalPhotos,
+    photos, // ✅ NUEVO
+    expiresAt: Date.now() + CACHE_TTL_MS 
+  });
 }
 
 async function safeText(res: Response) {
@@ -194,56 +208,6 @@ async function fetchWithRetryRaw(
   return null;
 }
 
-const BAD_TYPES = new Set([
-  "accounting",
-  "bank",
-  "insurance_agency",
-  "lawyer",
-  "real_estate_agency",
-  "post_office",
-  "car_dealer",
-  "car_rental",
-  "car_repair",
-  "car_wash",
-  "gas_station",
-  "restaurant",
-  "cafe",
-  "bar",
-  "night_club",
-  "shopping_mall",
-  "store",
-  "gym",
-  "church",
-  "mosque",
-  "synagogue",
-  "school",
-  "university",
-]);
-
-const COMMERCIAL_HINTS =
-  /(commercial|retail|office|warehouse|industrial|chamber of commerce|bookkeeping|business|mall|plaza|center|company|inc\b|llc\b|suite\s*#?\d+|unit\s*\d+)/i;
-
-const looksCommercial = (p: {
-  displayName?: { text?: string };
-  types?: string[];
-}) =>
-  COMMERCIAL_HINTS.test(p.displayName?.text || "") ||
-  (Array.isArray(p.types) && p.types.some((t: string) => BAD_TYPES.has(t)));
-
-const residentialish = (p: { types?: string[] }) =>
-  Array.isArray(p.types) &&
-  p.types.some((t: string) =>
-    [
-      "premise",
-      "street_address",
-      "route",
-      "locality",
-      "sublocality",
-      "neighborhood",
-      "plus_code",
-    ].includes(t)
-  );
-
 export async function fetchVerifiedImage(
   rawQuery: string,
   opts?: {
@@ -261,13 +225,13 @@ export async function fetchVerifiedImage(
 ): Promise<string | null> {
   try {
     const photoIndex = opts?.photoIndex ?? 0;
-    const cacheKey = `${rawQuery}:${photoIndex}`;
+    const photoCacheKey = `${rawQuery}:${photoIndex}`;
 
-    // ✅ Verificar caché de foto específica
-    const cached = getCachedPhoto(cacheKey);
-    if (cached !== undefined) {
-      console.log(`[Places] 💾 Cache hit for "${rawQuery}" [#${photoIndex}]`);
-      return cached;
+    // ✅ 1. Verificar caché de foto específica
+    const cachedPhotoUrl = getCachedPhoto(photoCacheKey);
+    if (cachedPhotoUrl !== undefined) {
+      log(`[Places] 💾 Photo cache hit for "${rawQuery}" [#${photoIndex}]`);
+      return cachedPhotoUrl;
     }
 
     if (!API_KEY) return null;
@@ -278,17 +242,17 @@ export async function fetchVerifiedImage(
     const regionCode = opts?.regionCode ?? "US";
     const mode = opts?.mode ?? "area";
 
-    // ✅ Crear key base (sin photoIndex) para caché de place_id
+    // ✅ 2. Crear key base (sin photoIndex) para caché de place
     const baseQueryKey = `${rawQuery}:${opts?.locationHint || ""}:${opts?.includedType || ""}:${mode}`;
 
-    // ✅ Verificar si ya tenemos el place_id cacheado
-    const cachedPlaceData = getCachedPlaceId(baseQueryKey);
-    let placeId: string | null = cachedPlaceData?.placeId || null;
-    let totalPhotos: number | undefined = cachedPlaceData?.totalPhotos;
+    // ✅ 3. Verificar si ya tenemos place_id Y photos[] cacheados
+    const cachedPlace = getCachedPlace(baseQueryKey);
+    let placeId: string | null = cachedPlace?.placeId || null;
+    let photos: Array<{ name: string }> | null = cachedPlace?.photos || null;
 
-    // ✅ Si NO tenemos place_id, hacer Text Search
-    if (!placeId) {
-      console.log(`[Places] 🔍 Searching for "${rawQuery}"...`);
+    // ✅ 4. Si NO tenemos place_id, hacer Text Search + Place Details
+    if (!placeId || !photos) {
+      log(`[Places] 🔍 Searching for "${rawQuery}"...`);
 
       const seen = new Set<string>();
       const queries: string[] = [];
@@ -326,10 +290,7 @@ export async function fetchVerifiedImage(
         "X-Goog-FieldMask": "places.id",
       };
 
-      log(" PLACES_DEBUG=ON  key=", maskKey(API_KEY));
-      log(" queries to try:", queries);
-
-      // ✅ Intentar Text Search (solo una vez)
+      // Text Search
       for (const textQuery of queries) {
         const body: any = {
           textQuery,
@@ -367,33 +328,28 @@ export async function fetchVerifiedImage(
         }
 
         const places = searchResp.json.places.slice(0, 5);
-        console.log(`[Places] query="${textQuery}" -> ${places.length} places`);
+        log(`[Places] query="${textQuery}" -> ${places.length} places`);
 
-        // Tomar el primer place_id
         if (places[0]?.id) {
           placeId = places[0].id;
-          console.log(`[Places] ✅ Found placeId: ${placeId}`);
+          log(`[Places] ✅ Found placeId: ${placeId}`);
           break;
         }
       }
 
       if (!placeId) {
-        console.log(`[Places] ❌ No place found for "${rawQuery}"`);
+        log(`[Places] ❌ No place found for "${rawQuery}"`);
         return null;
       }
-    } else {
-      console.log(`[Places] ♻️ Reusing cached placeId for "${rawQuery}"`);
-    }
 
-    // ✅ Obtener Place Details (solo si no lo tenemos cacheado)
-    if (totalPhotos === undefined) {
+      // Place Details (obtener photos[])
       const headersDetails: Record<string, string> = {
         "Content-Type": "application/json",
         "X-Goog-Api-Key": API_KEY,
         "X-Goog-FieldMask": "id,photos,types,location",
       };
 
-      console.log(`[Places] 📋 Fetching details for placeId: ${placeId}`);
+      log(`[Places] 📋 Fetching details for placeId: ${placeId}`);
       const detRes = await fetchJsonWithRetry<{
         id: string;
         types?: string[];
@@ -409,66 +365,35 @@ export async function fetchVerifiedImage(
 
       const det = detRes.json;
       if (!det.photos?.length) {
-        console.log(`[Places] ❌ No photos for placeId: ${placeId}`);
+        log(`[Places] ❌ No photos for placeId: ${placeId}`);
         return null;
       }
 
-      totalPhotos = det.photos.length;
+      photos = det.photos;
 
-      // ✅ Guardar place_id en caché
-      setCachedPlaceId(baseQueryKey, placeId, totalPhotos);
-      console.log(`[Places] 💾 Cached placeId with ${totalPhotos} photos`);
-
-      // Aplicar filtros según mode
-      const types = det.types || [];
-      if (mode === "property") {
-        if (looksCommercial({ types, displayName: { text: "" } })) {
-          console.log(`[Places] ⚠️ Skipping commercial property`);
-          return null;
-        }
-        if (!residentialish({ types })) {
-          console.log(`[Places] ⚠️ Not residential`);
-          return null;
-        }
-      } else if (mode === "area") {
-        if (looksCommercial({ types, displayName: { text: "" } })) {
-          console.log(`[Places] ⚠️ Skipping commercial area`);
-          return null;
-        }
-      }
+      // ✅ Cachear place_id + photos[]
+      setCachedPlace(baseQueryKey, placeId, photos.length, photos);
+      log(`[Places] 💾 Cached placeId with ${photos.length} photos`);
+    } else {
+      log(`[Places] ♻️ Reusing cached placeId + photos for "${rawQuery}"`);
     }
 
-    // ✅ Obtener la foto específica por índice
-    // Volver a pedir Details para obtener el array de fotos
-    const headersDetails: Record<string, string> = {
-      "Content-Type": "application/json",
-      "X-Goog-Api-Key": API_KEY,
-      "X-Goog-FieldMask": "photos",
-    };
-
-    const detRes2 = await fetchJsonWithRetry<{
-      photos?: Array<{ name: string }>;
-    }>(`https://places.googleapis.com/v1/places/${placeId}`, {
-      headers: headersDetails,
-    });
-
-    if (!detRes2.ok || !detRes2.json?.photos?.length) {
-      console.warn("Cannot get photos array");
+    // ✅ 5. Obtener foto específica del array cacheado
+    if (!photos || photos.length === 0) {
+      log(`[Places] ❌ No photos available`);
       return null;
     }
 
-    const photos = detRes2.json.photos;
     const ph = photos[photoIndex] ?? photos[0];
-
     if (!ph?.name) {
-      console.log(`[Places] ❌ No photo at index ${photoIndex}`);
+      log(`[Places] ❌ No photo at index ${photoIndex}`);
       return null;
     }
 
     const photoName = ph.name;
-    console.log(`[Places] 📸 Photo: ${photoName} [#${photoIndex}/${photos.length}]`);
+    log(`[Places] 📸 Photo: ${photoName} [#${photoIndex}/${photos.length}]`);
 
-    // ✅ Obtener URL de la foto
+    // ✅ 6. Obtener URL de la foto
     const mediaUrl =
       `https://places.googleapis.com/v1/${photoName}/media` +
       `?maxWidthPx=${maxWidthPx}&maxHeightPx=${maxHeightPx}&skipHttpRedirect=true`;
@@ -501,7 +426,7 @@ export async function fetchVerifiedImage(
         photoUrl = j.photoUri.startsWith("http")
           ? j.photoUri
           : `https:${j.photoUri}`;
-        console.log("✅ Foto encontrada:", photoUrl);
+        log("✅ Foto encontrada:", photoUrl);
       } else {
         log("media JSON sin photoUri");
       }
@@ -510,16 +435,16 @@ export async function fetchVerifiedImage(
       log("media redirect Location:", loc);
       if (loc) {
         photoUrl = loc.startsWith("http") ? loc : `https:${loc}`;
-        console.log("✅ Foto (Location):", photoUrl);
+        log("✅ Foto (Location):", photoUrl);
       }
     }
 
     if (photoUrl) {
-      setCachedPhoto(cacheKey, photoUrl, placeId, totalPhotos);
+      setCachedPhoto(photoCacheKey, photoUrl);
       return photoUrl;
     }
 
-    console.log(`[Places] ❌ No photo URL for "${rawQuery}" [#${photoIndex}]`);
+    log(`[Places] ❌ No photo URL for "${rawQuery}" [#${photoIndex}]`);
     return null;
   } catch (e) {
     console.error("fetchVerifiedImage() error:", e);
@@ -527,4 +452,5 @@ export async function fetchVerifiedImage(
   }
 }
 
-export { COMMERCIAL_HINTS };
+export const COMMERCIAL_HINTS =
+  /(commercial|retail|office|warehouse|industrial|chamber of commerce|bookkeeping|business|mall|plaza|center|company|inc\b|llc\b|suite\s*#?\d+|unit\s*\d+)/i;

@@ -1,6 +1,4 @@
-// ==========================================
-// ARCHIVO 1: src/services/backgroundImageEnhancer.ts
-// ==========================================
+// src/services/backgroundImageEnhancer.ts
 import prisma from "../config/prisma";
 import { fetchVerifiedImage } from "./imageLookupService";
 import { FALLBACKS } from "./openai/constants";
@@ -52,10 +50,10 @@ export async function enhanceImagesInBackground(
 
     console.log(`📦 [BACKGROUND] Found ${recommendation.areas.length} areas to enhance\n`);
 
-    // 🟡 FASE 2
+    // 🟡 FASE 2: Primeros items
     const phase2Start = Date.now();
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`🟡 [PHASE 2] Starting visible galleries enhancement...`);
+    console.log(`🟡 [PHASE 2] Enhancing first items of each category...`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
     
     await enhanceVisibleGalleries(recommendation);
@@ -63,15 +61,12 @@ export async function enhanceImagesInBackground(
     const phase2Duration = ((Date.now() - phase2Start) / 1000).toFixed(1);
     console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`✅ [PHASE 2] COMPLETED in ${phase2Duration}s`);
-    console.log(`   ✓ First items of each category now have full galleries`);
-    console.log(`   ✓ First 3 properties have complete image sets`);
-    console.log(`   📊 Database updated with enhanced images`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
-    // 🟢 FASE 3
+    // 🟢 FASE 3: Items restantes
     const phase3Start = Date.now();
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`🟢 [PHASE 3] Starting remaining images enhancement...`);
+    console.log(`🟢 [PHASE 3] Enhancing remaining items...`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
     
     await enhanceRemainingImages(recommendation);
@@ -79,9 +74,6 @@ export async function enhanceImagesInBackground(
     const phase3Duration = ((Date.now() - phase3Start) / 1000).toFixed(1);
     console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`✅ [PHASE 3] COMPLETED in ${phase3Duration}s`);
-    console.log(`   ✓ All items now have full galleries`);
-    console.log(`   ✓ All properties have complete image sets`);
-    console.log(`   📊 Database fully updated`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
     const totalDuration = ((Date.now() - startTime) / 1000 / 60).toFixed(1);
@@ -90,8 +82,6 @@ export async function enhanceImagesInBackground(
     console.log(`   ⏱️  Total time: ${totalDuration} minutes`);
     console.log(`   ✓ Phase 2: ${phase2Duration}s`);
     console.log(`   ✓ Phase 3: ${phase3Duration}s`);
-    console.log(`   📊 Recommendation #${recommendationId} fully enhanced`);
-    console.log(`   💾 All changes saved to database`);
     console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
     
   } catch (err) {
@@ -101,6 +91,7 @@ export async function enhanceImagesInBackground(
   }
 }
 
+// 🟡 FASE 2: Solo primeros items
 async function enhanceVisibleGalleries(recommendation: any) {
   let totalUpdated = 0;
   let totalFailed = 0;
@@ -121,6 +112,7 @@ async function enhanceVisibleGalleries(recommendation: any) {
       { items: area.hobbies, model: prisma.hobby, type: undefined, name: "hobbies" }
     ];
 
+    // Solo PRIMER item de cada categoría
     for (const cat of categories) {
       if (cat.items.length === 0) continue;
 
@@ -136,31 +128,33 @@ async function enhanceVisibleGalleries(recommendation: any) {
       
       if (result.success) {
         totalUpdated++;
-        console.log(`   ✅ ${cat.name}: ${firstItem.name} (${result.imagesCount} images) - SAVED TO DB`);
+        console.log(`   ✅ ${cat.name}: ${firstItem.name} (${result.imagesCount} images)`);
       } else {
         totalFailed++;
-        console.log(`   ⚠️ ${cat.name}: ${firstItem.name} - No new images`);
+        console.log(`   ⚠️ ${cat.name}: ${firstItem.name} - Failed`);
       }
     }
 
+    // Solo PRIMERAS 3 propiedades
     console.log(`   🏠 Processing first 3 properties...`);
     for (let i = 0; i < Math.min(3, area.properties.length); i++) {
       const result = await completePropertyGallery(area.properties[i], area.name, area.state, i + 1);
       if (result.success) {
         totalUpdated++;
-        console.log(`   ✅ Property ${i + 1}: ${result.imagesCount} images - SAVED TO DB`);
+        console.log(`   ✅ Property ${i + 1}: ${result.imagesCount} images`);
       } else {
         totalFailed++;
-        console.log(`   ⚠️ Property ${i + 1}: No new images`);
+        console.log(`   ⚠️ Property ${i + 1}: Failed`);
       }
     }
     
     console.log('');
   }
 
-  console.log(`📊 [PHASE 2] Summary: ${totalUpdated} updated, ${totalFailed} skipped`);
+  console.log(`📊 [PHASE 2] Summary: ${totalUpdated} updated, ${totalFailed} failed`);
 }
 
+// 🟢 FASE 3: Items restantes (2+)
 async function enhanceRemainingImages(recommendation: any) {
   let totalUpdated = 0;
   let totalFailed = 0;
@@ -181,6 +175,7 @@ async function enhanceRemainingImages(recommendation: any) {
       { items: area.hobbies, model: prisma.hobby, type: undefined, name: "hobbies" }
     ];
 
+    // Items 2, 3, 4... (omitir el primero)
     for (const cat of categories) {
       if (cat.items.length <= 1) continue;
       
@@ -197,20 +192,21 @@ async function enhanceRemainingImages(recommendation: any) {
         
         if (result.success) {
           totalUpdated++;
-          console.log(`      ✅ Item ${i + 1}: ${cat.items[i].name} (${result.imagesCount} images) - SAVED TO DB`);
+          console.log(`      ✅ Item ${i + 1}: ${cat.items[i].name} (${result.imagesCount} images)`);
         } else {
           totalFailed++;
         }
       }
     }
 
+    // Propiedades 4, 5, 6...
     if (area.properties.length > 3) {
       console.log(`   🏠 Processing properties 4-${area.properties.length}...`);
       for (let i = 3; i < area.properties.length; i++) {
         const result = await completePropertyGallery(area.properties[i], area.name, area.state, i + 1);
         if (result.success) {
           totalUpdated++;
-          console.log(`      ✅ Property ${i + 1}: ${result.imagesCount} images - SAVED TO DB`);
+          console.log(`      ✅ Property ${i + 1}: ${result.imagesCount} images`);
         } else {
           totalFailed++;
         }
@@ -220,7 +216,7 @@ async function enhanceRemainingImages(recommendation: any) {
     console.log('');
   }
 
-  console.log(`📊 [PHASE 3] Summary: ${totalUpdated} updated, ${totalFailed} skipped`);
+  console.log(`📊 [PHASE 3] Summary: ${totalUpdated} updated, ${totalFailed} failed`);
 }
 
 async function completeItemGallery(
@@ -233,9 +229,15 @@ async function completeItemGallery(
 ): Promise<{ success: boolean; imagesCount: number }> {
   try {
     const locationHint = [areaName, areaState].filter(Boolean).join(", ");
-    const currentGallery = Array.isArray(item.imageGallery) ? item.imageGallery : [];
-    const gallery: string[] = [...currentGallery];
+    
+    // ✅ Obtener gallery actual (puede estar vacío desde Fase 1)
+    const currentGallery = Array.isArray(item.imageGallery) && item.imageGallery.length > 0
+      ? item.imageGallery
+      : [item.imageUrl]; // Si está vacío, empezar con imageUrl
+    
+    const gallery: string[] = [...currentGallery].filter(Boolean);
 
+    // Completar hasta MAX_IMAGES_PER_ITEM
     for (let photoIndex = gallery.length; photoIndex < MAX_IMAGES_PER_ITEM; photoIndex++) {
       try {
         const imageUrl = await fetchVerifiedImage(item.name, {
@@ -255,6 +257,7 @@ async function completeItemGallery(
       }
     }
 
+    // Solo actualizar si conseguimos nuevas imágenes
     if (gallery.length > currentGallery.length) {
       await model.update({
         where: { id: item.id },
@@ -282,9 +285,12 @@ async function completePropertyGallery(
 ): Promise<{ success: boolean; imagesCount: number }> {
   try {
     const locationHint = [areaName, areaState].filter(Boolean).join(", ");
+    
+    // ✅ Obtener URLs actuales (puede ser solo 1 fallback desde Fase 1)
     const currentUrls = Array.isArray(property.imageUrls) ? property.imageUrls : [];
     const imageUrls: string[] = [...currentUrls];
 
+    // Completar hasta 5 imágenes
     for (let photoIndex = imageUrls.length; photoIndex < 5; photoIndex++) {
       try {
         const imageUrl = await fetchVerifiedImage(property.address || areaName, {
@@ -303,6 +309,7 @@ async function completePropertyGallery(
       }
     }
 
+    // Solo actualizar si conseguimos nuevas imágenes
     if (imageUrls.length > currentUrls.length) {
       await prisma.property.update({
         where: { id: property.id },
@@ -318,5 +325,3 @@ async function completePropertyGallery(
     return { success: false, imagesCount: 0 };
   }
 }
-
-
