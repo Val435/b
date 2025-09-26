@@ -1,10 +1,12 @@
+// src/services/openaiService.ts
+
 import dotenv from "dotenv";
 import { getOpenAI } from "./openai/client";
 import { mainPrompt, detailsPrompt } from "./openai/prompts";
 import { coreSchema, areaDetailsSchema } from "./openai/schemas";
 import { zodTextFormat } from "openai/helpers/zod";
 import { mergeAreas } from "./openai/mappers/mergeAreas";
-import { sanitizeImages } from "./openai/mappers/images/sanitizeImages";
+import { sanitizeCriticalImages } from "./openai/mappers/images/sanitizeCriticalImages";
 import { z } from "zod";
 
 // 👇 NUEVO
@@ -56,7 +58,7 @@ function extractLikelyJson(s: string) {
   return s;
 }
 
-// Fallback robusto para “arreglar” JSON casi-válido del modelo
+// Fallback robusto para "arreglar" JSON casi-válido del modelo
 function sanitizeAlmostJson(text: string): string {
   let s = String(text).trim();
 
@@ -76,7 +78,7 @@ function sanitizeAlmostJson(text: string): string {
   if (first >= 0 && last > first) s = s.slice(first, last + 1);
 
   // 2) normalizaciones básicas
-  s = s.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+  s = s.replace(/[""]/g, '"').replace(/['']/g, "'");
   s = s.replace(/,(\s*[\]}])/g, "$1");      // comas colgantes
   s = s.replace(/}\s*{/g, "},{");           // }{ → },{
   s = s.replace(/}\s*},/g, "},");           // }}, → },
@@ -93,7 +95,89 @@ function sanitizeAlmostJson(text: string): string {
   //    3.3) genérico para boolean/null/número
   s = s.replace(/("([^"]+)"\s*:\s*(?:true|false|null|-?\d+(?:\.\d+)?))\s*\]\s*,\s*\{/g, '$1}, {');
 
+  // 4) 🔧 FIX: Quote unquoted property names (common OpenAI output issue)
+  // Match unquoted property names like: {name: "value"} → {"name": "value"}
+  s = s.replace(/([{,\[\s]\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
+
+  // Also handle property names at the start of the JSON
+  s = s.replace(/^(\s*)([a-zA-Z_$][a-zA-Z0-9_$]*)\s*:/g, '$1"$2":');
+
+  // Fix single quotes around property names: {'name': value} → {"name": value}
+  s = s.replace(/'([^']*)'(\s*):/g, '"$1"$2:');
+
+  // Fix trailing commas before closing braces/brackets
+  s = s.replace(/,(\s*[}\]])/g, '$1');
+
+  // 5) 🔧 NEW FIX: Handle truncated JSON by removing incomplete properties at the end
+  // Look for incomplete property assignments like: "property":{"incomplete
+  s = s.replace(/,"[^"]*":\{"[^"}]*$/g, '');  // Remove incomplete object property at end
+  s = s.replace(/,"[^"]*":"[^"]*$/g, '');     // Remove incomplete string property at end
+  s = s.replace(/,"[^"]*":\[[^\]]*$/g, '');   // Remove incomplete array property at end
+  s = s.replace(/,"[^"]*":$/g, '');           // Remove property with no value at end
+
+  // 6) Ensure proper closing of structures
+  // Count opening and closing braces/brackets to balance them
+  const openBraces = (s.match(/\{/g) || []).length;
+  const closeBraces = (s.match(/\}/g) || []).length;
+  const openBrackets = (s.match(/\[/g) || []).length;
+  const closeBrackets = (s.match(/\]/g) || []).length;
+
+  // Add missing closing braces
+  for (let i = 0; i < openBraces - closeBraces; i++) {
+    s += '}';
+  }
+
+  // Add missing closing brackets
+  for (let i = 0; i < openBrackets - closeBrackets; i++) {
+    s += ']';
+  }
+
   return s.trim();
+}
+
+// Add missing required fields with sensible defaults
+function addMissingRequiredFields(obj: any): any {
+  if (!obj || typeof obj !== 'object') return obj;
+
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    return obj.map(addMissingRequiredFields);
+  }
+
+  // Clone the object
+  const result = { ...obj };
+
+  // Add missing categoryWithSummarySchema fields
+  const categoryFields = ['schools', 'socialLife', 'shopping', 'greenSpaces', 'sports', 'transportation', 'family', 'restaurants', 'pets', 'hobbies'];
+
+  for (const field of categoryFields) {
+    if (result[field] && typeof result[field] === 'object') {
+      if (!result[field].items) {
+        result[field].items = [];
+      }
+      if (!result[field].summary) {
+        result[field].summary = ["Information not available", "Please contact local authorities for more details", "More research may be needed"];
+      }
+      // Ensure summary is exactly 3 items
+      if (Array.isArray(result[field].summary)) {
+        while (result[field].summary.length < 3) {
+          result[field].summary.push("Additional information not available");
+        }
+        if (result[field].summary.length > 3) {
+          result[field].summary = result[field].summary.slice(0, 3);
+        }
+      }
+    }
+  }
+
+  // Recursively process nested objects
+  for (const key in result) {
+    if (result[key] && typeof result[key] === 'object') {
+      result[key] = addMissingRequiredFields(result[key]);
+    }
+  }
+
+  return result;
 }
 
 function extractResponseText(raw: any): string {
@@ -145,7 +229,8 @@ async function parseWithSimpleFallback<T>(
     // a) intento directo
     try {
       const obj = JSON.parse(text);
-      return schema.parse(obj) as T;
+      const withFallbacks = addMissingRequiredFields(obj);
+      return schema.parse(withFallbacks) as T;
     } catch (e1: any) {
       const m = /position (\d+)/i.exec(String(e1));
       if (m) logWindowAround(text, parseInt(m[1], 10));
@@ -155,7 +240,8 @@ async function parseWithSimpleFallback<T>(
     const cleaned = sanitizeAlmostJson(text);
     try {
       const obj = JSON.parse(cleaned);
-      return schema.parse(obj) as T;
+      const withFallbacks = addMissingRequiredFields(obj);
+      return schema.parse(withFallbacks) as T;
     } catch (e2: any) {
       const m = /position (\d+)/i.exec(String(e2));
       if (m) logWindowAround(cleaned, parseInt(m[1], 10));
@@ -164,7 +250,8 @@ async function parseWithSimpleFallback<T>(
     // c) JSON5 (tolerante a comas colgantes, etc.)
     try {
       const obj = JSON5.parse(cleaned);
-      return schema.parse(obj) as T;
+      const withFallbacks = addMissingRequiredFields(obj);
+      return schema.parse(withFallbacks) as T;
     } catch {
       // sigue
     }
@@ -173,13 +260,15 @@ async function parseWithSimpleFallback<T>(
     try {
       const repaired = jsonrepair(cleaned);
       const obj = JSON.parse(repaired);
-      return schema.parse(obj) as T;
+      const withFallbacks = addMissingRequiredFields(obj);
+      return schema.parse(withFallbacks) as T;
     } catch {
       // e) Último intento: barrido amplio de cualquier '],{' remanente
       try {
         const lastResort = cleaned.replace(/\]\s*,\s*\{/g, "}, {");
         const obj = JSON.parse(lastResort);
-        return schema.parse(obj) as T;
+        const withFallbacks = addMissingRequiredFields(obj);
+        return schema.parse(withFallbacks) as T;
       } catch (eFinal) {
         // eslint-disable-next-line no-console
         console.error("❌ JSON irreparable. Head:\n", String(text).slice(0, 400));
@@ -248,12 +337,14 @@ export async function fetchRecommendationsFromOpenAI(userProfile: any) {
     }
   );
 
-  // === 3) Merge + sanitización final de imágenes ===
+  // === 3) Merge ===
   const mergedAreas = mergeAreas(core, detailsList);
   const finalResult = {
     recommendedAreas: mergedAreas,
     propertySuggestion: core.propertySuggestion,
   };
 
-  return await sanitizeImages(finalResult);
+  // === 4) ✅ SOLO IMÁGENES CRÍTICAS (rápido - 2-3 min) ===
+  console.log('🎯 Fetching critical images only...');
+  return await sanitizeCriticalImages(finalResult);
 }

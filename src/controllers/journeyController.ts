@@ -3,7 +3,7 @@ import prisma from "../config/prisma";
 import { fetchRecommendationsFromOpenAI } from "../services/openaiService";
 import { saveRecommendation } from "../services/saveRecommendationService";
 import { buildProfileVersionData, mergeProfileForJourney } from "../services/profileVersionService";
-
+import { enhanceImagesInBackground } from "../services/backgroundImageEnhancer";
 /**
  * Crea un Journey en estado PENDING.
  * Calcula un index incremental (1..N) por usuario.
@@ -69,15 +69,12 @@ export const runJourney: RequestHandler = async (req, res, next) => {
     const authUser = req.user as { id?: number };
     const journeyId = Number(req.params.id);
 
-    // ... (tus validaciones existentes)
-
     const journey = await prisma.journey.findUnique({ where: { id: journeyId } });
     if (!journey || journey.userId !== authUser.id) {
       res.status(404).json({ success: false, error: "Journey not found" });
       return;
     }
 
-    // Evitar dos RUNNING
     const running = await prisma.journey.findFirst({
       where: { userId: authUser.id, status: "RUNNING" },
     });
@@ -97,20 +94,19 @@ export const runJourney: RequestHandler = async (req, res, next) => {
       return;
     }
 
-    // ✅ 1) Fusionar el perfil “efectivo” para ESTE journey
     const mergedProfile = mergeProfileForJourney(user, journey);
-
-    // ✅ 2) Guardar snapshot/version del perfil (NO tocamos User)
     const versionData = buildProfileVersionData(user.id, journey.id, mergedProfile);
-    // Si definiste @unique(journeyId), usa upsert por si reintentas:
     await prisma.userProfileVersion.upsert({
       where: { journeyId: journey.id },
       update: versionData,
       create: versionData,
     });
 
-    // ✅ 3) Usar ese perfil para OpenAI
+    // ✅ Obtener recomendación CON imágenes críticas (2-3 min)
+    console.log('🤖 Generating recommendation with critical images...');
     const reco = await fetchRecommendationsFromOpenAI(mergedProfile);
+    
+    // ✅ Guardar
     const saved = await saveRecommendation(reco, authUser.id!, journey.id);
 
     await prisma.journey.update({
@@ -118,18 +114,24 @@ export const runJourney: RequestHandler = async (req, res, next) => {
       data: { status: "COMPLETED", completedAt: new Date() },
     });
 
+    // ✅ RESPONDER INMEDIATAMENTE (imágenes críticas ya incluidas)
     res.status(200).json({
       success: true,
-      message: "Journey completed",
+      message: "Journey completed with priority images. Full gallery loading in background.",
       journeyId: journey.id,
       recommendationId: saved.id,
     });
+
+    // 🔥 Background: completar el resto (fases 2 y 3)
+    console.log('🖼️ Starting background enhancement (phases 2-3)...');
+    enhanceImagesInBackground(saved.id, journey.userId).catch(err => {
+      console.error('❌ Background enhancement failed:', err);
+    });
+
   } catch (err) {
-    // si falla, marca CANCELLED como ya tenías
     next(err);
   }
 };
-
 
 /**
  * Lista journeys del usuario autenticado, ordenados desc.
