@@ -108,7 +108,8 @@ export const runJourney: RequestHandler = async (req, res, next) => {
     const openaiDuration = ((Date.now() - openaiStart) / 1000).toFixed(1);
     console.log(`✅ OpenAI completed in ${openaiDuration}s`);
 
-    // ✅ Guardar en DB (ANTES de responder para que el cliente pueda consultarlo)
+    console.log('🔍 DEBUG: About to save recommendation...');
+console.log('🔍 DEBUG: reco structure:', JSON.stringify(reco).substring(0, 200));
     const saveStart = Date.now();
     console.log('💾 Saving to database...');
     const saved = await saveRecommendation(reco, authUser.id!, journey.id);
